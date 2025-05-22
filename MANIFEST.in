@@ -1,0 +1,10 @@
+include README.md
+include LICENSE
+include pbt/templates/*.yaml
+include pbt/templates/*.sql
+include pbt/static/*
+include pbt/config/*.json
+recursive-include pbt/server/templates *
+recursive-include pbt/server/static *
+global-exclude *.pyc
+global-exclude __pycache__
