@@ -1,2 +1,11 @@
-.env*
-venv*
+.env
+*.pyc
+__pycache__/
+.pytest_cache/
+.coverage
+.venv/
+venv/
+node_modules/
+.DS_Store
+evaluations/*.json
+*.log

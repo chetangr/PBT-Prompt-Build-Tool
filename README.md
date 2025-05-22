@@ -77,48 +77,59 @@ PBT is an open-source prompt operating system designed for teams that need **dbt
 ### 1. Installation
 
 ```bash
+# Clone the repository
 git clone https://github.com/your-org/prompt-build-tool.git
 cd prompt-build-tool
-pip install -r requirements.txt
+
+# Install globally (no virtual environment needed)
+./install_system.sh
 ```
 
-### 2. Environment Setup
+### 2. Get API Keys (Required)
 
 ```bash
+# Minimum setup - just get this one key:
+# ANTHROPIC_API_KEY from https://console.anthropic.com
+
+# Optional for full features:
+# OPENAI_API_KEY from https://platform.openai.com/api-keys
+# SUPABASE_URL + SUPABASE_KEY from https://supabase.com
+
+# See API_KEYS.md for detailed setup instructions
+```
+
+### 3. Create Your First Project
+
+```bash
+# Create and initialize project
+mkdir my-prompts && cd my-prompts
+pbt init --name "My Prompts"
+
+# Add your API key
 cp .env.example .env
-# Add your API keys to .env:
-# - ANTHROPIC_API_KEY
-# - OPENAI_API_KEY  
-# - SUPABASE_URL + SUPABASE_KEY
+nano .env  # Add ANTHROPIC_API_KEY=sk-ant-your-key-here
 ```
 
-### 3. Database Setup
-
-1. Create Supabase project at [supabase.com](https://supabase.com)
-2. Run SQL schema: `backend/db/schema.sql` 
-3. Seed with sample data: `python backend/db/seed_prompts.py`
-
-### 4. Start Services
+### 4. Generate Your First Prompt
 
 ```bash
-# Backend API
-cd backend && uvicorn main:app --reload --port 8000
+# Generate a prompt using AI
+pbt generate --goal "Summarize customer feedback into actionable insights"
 
-# Frontend (optional - API works standalone)  
-cd playground && npm install && npm start
+# Test the generated prompt
+pbt test customer_feedback_summarizer.yaml
+
+# Compare across models (requires OPENAI_API_KEY)
+pbt compare --prompt "Hello world" --models claude gpt-4
 ```
 
-### 5. Test CLI
+### 5. Optional: Start Web Server
 
 ```bash
-# Initialize project
-python cli/pbt.py init --name my-prompts
+# Start the full web interface (requires SUPABASE keys)
+pbt serve --port 8000
 
-# Generate a prompt
-python cli/pbt.py generate-prompt --goal "Summarize sarcastic tweets"
-
-# Test the prompt
-python cli/pbt.py test tweet_summarizer.prompt.yaml
+# Visit http://localhost:8000 for web UI
 ```
 
 ---

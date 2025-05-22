@@ -8,6 +8,13 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 from pydantic import BaseModel
 
+# Ensure .env files are loaded
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # Load from current directory and upward
+except ImportError:
+    pass
+
 class PBTConfig(BaseModel):
     """PBT configuration model"""
     
