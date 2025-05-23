@@ -41,6 +41,14 @@ PBT is an open-source prompt operating system designed for teams that need **dbt
 - ✅ Badge system for GDPR, safety compliance
 - ✅ Version control integration
 
+🔄 **DBT-like Features**
+- ✅ Dependency graphs (DAG) with `ref()` syntax
+- ✅ Environment profiles (dev/staging/prod)
+- ✅ Snapshot & restore for version control
+- ✅ Auto-generated documentation
+- ✅ Run results tracking & metrics
+- ✅ Manifest generation for metadata
+
 ---
 
 ## 🏗️ Architecture
@@ -69,6 +77,41 @@ PBT is an open-source prompt operating system designed for teams that need **dbt
 └── 🔧 CLI (Python)
     └── pbt command        → CI/CD integration
 ```
+
+---
+
+## 🆕 DBT-like Features
+
+PBT brings the power of DBT to prompt engineering:
+
+### Dependency Management
+```yaml
+# prompts/analyzer.yaml
+depends_on:
+  - ref('data_cleaner')  # Define upstream dependencies
+```
+
+### Multiple Environments
+```yaml
+# profiles.yml
+development:
+  target: dev
+  outputs:
+    dev:
+      llm_provider: openai
+      llm_model: gpt-4
+      temperature: 0.7
+```
+
+### Key Commands
+```bash
+pbt deps --format mermaid        # Visualize dependencies
+pbt snapshot create              # Version control
+pbt docs --serve                 # Auto-generate docs
+pbt run --profile production     # Environment-specific runs
+```
+
+[📚 Full DBT Features Documentation](docs/DBT_FEATURES.md)
 
 ---
 

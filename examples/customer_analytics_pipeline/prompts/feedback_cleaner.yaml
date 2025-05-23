@@ -1,0 +1,45 @@
+name: feedback_cleaner
+version: 1.0.0
+description: Cleans and standardizes raw feedback data
+depends_on:
+  - ref('raw_feedback_collector')
+variables:
+  - raw_feedback
+  - cleaning_rules
+template: |
+  Clean and standardize the feedback data:
+  
+  Raw Feedback: {{ raw_feedback }}
+  Cleaning Rules: {{ cleaning_rules }}
+  
+  Perform the following:
+  1. Remove PII (names, emails, phone numbers)
+  2. Standardize text (lowercase, remove extra spaces)
+  3. Fix common typos and abbreviations
+  4. Remove spam and duplicate entries
+  5. Enrich with derived fields (word count, language detected)
+  6. Validate data integrity
+  
+  Return cleaned data maintaining the same structure.
+model_config:
+  temperature: 0.1
+  max_tokens: 2000
+examples:
+  - input:
+      raw_feedback: '[{"text": "TERRIBLE SERVICE!!! Contact me at john@email.com"}]'
+      cleaning_rules: "standard"
+    output: |
+      [
+        {
+          "text": "terrible service",
+          "cleaned": true,
+          "pii_removed": ["email"],
+          "word_count": 2,
+          "language": "en"
+        }
+      ]
+tags:
+  - data-processing
+  - cleaning
+config:
+  materialized: view

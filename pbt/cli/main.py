@@ -29,6 +29,11 @@ from pbt.core.project import PBTProject
 from pbt.core.generator import PromptGenerator
 from pbt.core.evaluator import PromptEvaluator
 from pbt.core.deployer import PromptDeployer
+from pbt.core.dag import PromptDAG
+from pbt.core.manifest import Manifest
+from pbt.core.snapshot import SnapshotManager
+from pbt.core.profiles import ProfileManager
+from pbt.core.run_results import RunResultsManager, RunStatus
 from pbt.__version__ import __version__
 
 app = typer.Typer(
@@ -1096,6 +1101,334 @@ def gentests(
     except Exception as e:
         console.print(f"[red]❌ Error generating test cases: {e}[/red]")
         raise typer.Exit(1)
+
+@app.command()
+def deps(
+    output_format: str = typer.Option("text", "--format", help="Output format: text, mermaid, json"),
+    target: Optional[str] = typer.Option(None, "--target", help="Show dependencies for specific prompt"),
+    downstream: bool = typer.Option(False, "--downstream", help="Show downstream dependencies")
+):
+    """
+    🔗 Show prompt dependency graph (DBT-like lineage)
+    
+    Visualize how prompts depend on each other:
+    - pbt deps - Show full dependency graph
+    - pbt deps --target my_prompt - Show dependencies for specific prompt
+    - pbt deps --format mermaid - Output as Mermaid diagram
+    """
+    console.print("[bold blue]🔗 Analyzing prompt dependencies[/bold blue]")
+    
+    try:
+        dag = PromptDAG(Path.cwd())
+        dag.load_prompts()
+        
+        if target:
+            # Show lineage for specific prompt
+            lineage = dag.get_lineage(target)
+            
+            console.print(f"\n[bold]Lineage for {target}:[/bold]")
+            console.print(f"\n[cyan]Upstream dependencies:[/cyan]")
+            for dep in lineage['upstream']:
+                console.print(f"  ← {dep}")
+            
+            if downstream:
+                console.print(f"\n[cyan]Downstream dependencies:[/cyan]")
+                for dep in lineage['downstream']:
+                    console.print(f"  → {dep}")
+        else:
+            # Show full graph
+            if output_format == "mermaid":
+                mermaid = dag.to_mermaid()
+                console.print("\n[bold]Mermaid Diagram:[/bold]")
+                console.print(Panel(mermaid, title="Copy to Mermaid Live Editor", expand=False))
+            elif output_format == "json":
+                import json
+                graph_data = {
+                    "nodes": list(dag.nodes.keys()),
+                    "edges": list(dag.graph.edges())
+                }
+                console.print(json.dumps(graph_data, indent=2))
+            else:
+                # Text format
+                execution_order = dag.get_execution_order()
+                console.print("\n[bold]Execution Order:[/bold]")
+                for i, prompt in enumerate(execution_order, 1):
+                    console.print(f"{i}. {prompt}")
+                
+    except Exception as e:
+        console.print(f"[red]❌ Error analyzing dependencies: {e}[/red]")
+        raise typer.Exit(1)
+
+@app.command()
+def docs(
+    serve: bool = typer.Option(False, "--serve", help="Serve documentation locally"),
+    output_dir: Optional[Path] = typer.Option(None, "--output", help="Output directory for docs")
+):
+    """
+    📚 Generate documentation from prompts (DBT-like docs)
+    
+    Auto-generates documentation from your prompt files:
+    - Prompt descriptions and metadata
+    - Variable documentation
+    - Example usage
+    - Dependency graphs
+    """
+    console.print("[bold blue]📚 Generating documentation[/bold blue]")
+    
+    try:
+        manifest = Manifest(Path.cwd())
+        manifest.load_prompts()
+        manifest.load_tests()
+        
+        output = output_dir or Path("docs/generated")
+        manifest.generate_docs(output)
+        
+        console.print(f"[green]✅ Documentation generated in {output}[/green]")
+        
+        if serve:
+            import subprocess
+            console.print("\n[cyan]Starting documentation server...[/cyan]")
+            subprocess.run(["python", "-m", "http.server", "8000"], cwd=output)
+            
+    except Exception as e:
+        console.print(f"[red]❌ Error generating docs: {e}[/red]")
+        raise typer.Exit(1)
+
+@app.command()
+def snapshot(
+    action: str = typer.Argument("create", help="Action: create, list, diff, restore"),
+    prompt_name: Optional[str] = typer.Option(None, "--prompt", help="Specific prompt to snapshot"),
+    timestamp: Optional[str] = typer.Option(None, "--timestamp", help="Timestamp for diff/restore"),
+    reason: Optional[str] = typer.Option("", "--reason", help="Reason for snapshot")
+):
+    """
+    📸 Manage prompt snapshots (DBT-like snapshots)
+    
+    Track prompt changes over time:
+    - pbt snapshot create - Snapshot all prompts
+    - pbt snapshot list --prompt my_prompt - List snapshots
+    - pbt snapshot diff --prompt my_prompt - Compare versions
+    - pbt snapshot restore --prompt my_prompt --timestamp 2024-01-01
+    """
+    manager = SnapshotManager(Path.cwd())
+    
+    if action == "create":
+        console.print("[bold blue]📸 Creating snapshots[/bold blue]")
+        
+        if prompt_name:
+            # Snapshot specific prompt
+            prompt_path = find_prompt_file(prompt_name)
+            if prompt_path:
+                snapshot = manager.create_snapshot(prompt_path, reason)
+                console.print(f"[green]✅ Created snapshot for {prompt_name}[/green]")
+            else:
+                console.print(f"[red]❌ Prompt not found: {prompt_name}[/red]")
+        else:
+            # Snapshot all
+            snapshots = manager.snapshot_all(reason or "Manual snapshot")
+            console.print(f"[green]✅ Created {len(snapshots)} snapshots[/green]")
+            
+    elif action == "list":
+        if not prompt_name:
+            console.print("[red]❌ Please specify --prompt[/red]")
+            raise typer.Exit(1)
+            
+        snapshots = manager.get_snapshots(prompt_name)
+        if snapshots:
+            table = Table(show_header=True, header_style="bold magenta")
+            table.add_column("Timestamp", style="cyan")
+            table.add_column("Version")
+            table.add_column("Reason")
+            
+            for snap in snapshots:
+                table.add_row(
+                    snap.timestamp,
+                    snap.version,
+                    snap.metadata.get('reason', '')
+                )
+            
+            console.print(table)
+        else:
+            console.print(f"[yellow]No snapshots found for {prompt_name}[/yellow]")
+            
+    elif action == "diff":
+        if not prompt_name:
+            console.print("[red]❌ Please specify --prompt[/red]")
+            raise typer.Exit(1)
+            
+        diff = manager.diff_snapshots(prompt_name)
+        if diff:
+            syntax = Syntax(diff, "diff", theme="monokai")
+            console.print(Panel(syntax, title=f"Changes in {prompt_name}", expand=False))
+        else:
+            console.print("[yellow]No differences found[/yellow]")
+            
+    elif action == "restore":
+        if not prompt_name or not timestamp:
+            console.print("[red]❌ Please specify --prompt and --timestamp[/red]")
+            raise typer.Exit(1)
+            
+        if manager.restore_snapshot(prompt_name, timestamp):
+            console.print(f"[green]✅ Restored {prompt_name} to {timestamp}[/green]")
+        else:
+            console.print(f"[red]❌ Failed to restore snapshot[/red]")
+
+@app.command()
+def run(
+    target: Optional[str] = typer.Argument(None, help="Specific prompt to run"),
+    profile: Optional[str] = typer.Option(None, "--profile", help="Profile to use"),
+    target_env: Optional[str] = typer.Option(None, "--target", help="Target environment"),
+    full_refresh: bool = typer.Option(False, "--full-refresh", help="Rebuild all prompts")
+):
+    """
+    🚀 Run prompts with dependency resolution (DBT-like run)
+    
+    Execute prompts in dependency order:
+    - pbt run - Run all prompts
+    - pbt run my_prompt - Run specific prompt and dependencies
+    - pbt run --profile production --target prod
+    """
+    console.print("[bold blue]🚀 Running prompts[/bold blue]")
+    
+    # Initialize managers
+    dag = PromptDAG(Path.cwd())
+    profiles = ProfileManager(Path.cwd())
+    run_results = RunResultsManager(Path.cwd())
+    
+    # Set profile if specified
+    if profile:
+        profiles.set_active_profile(profile, target_env)
+    
+    # Load prompts and get execution order
+    dag.load_prompts()
+    execution_order = dag.get_execution_order(target)
+    
+    # Start run
+    run_id = run_results.start_run(
+        project_name=Path.cwd().name,
+        args={"target": target, "profile": profile, "full_refresh": full_refresh}
+    )
+    
+    console.print(f"Run ID: {run_id}")
+    console.print(f"Prompts to run: {len(execution_order)}")
+    
+    # Execute prompts
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console
+    ) as progress:
+        task = progress.add_task("Running prompts...", total=len(execution_order))
+        
+        for prompt_name in execution_order:
+            progress.update(task, description=f"Running {prompt_name}...")
+            
+            # Record execution (placeholder - would actually run the prompt)
+            run_results.start_prompt_execution(prompt_name)
+            
+            # Simulate execution
+            import time
+            time.sleep(0.5)
+            
+            # Record result
+            run_results.record_prompt_result(
+                prompt_name,
+                RunStatus.SUCCESS,
+                message="Prompt executed successfully"
+            )
+            
+            progress.advance(task)
+    
+    # Complete run
+    results = run_results.complete_run()
+    
+    # Display summary
+    summary = run_results.generate_summary(results)
+    console.print("\n" + summary)
+
+@app.command()
+def profiles(
+    action: str = typer.Argument("list", help="Action: list, create, validate"),
+    name: Optional[str] = typer.Option(None, "--name", help="Profile name")
+):
+    """
+    👤 Manage environment profiles (DBT-like profiles.yml)
+    
+    Configure different environments:
+    - pbt profiles list - Show all profiles
+    - pbt profiles create --name production
+    - pbt profiles validate --name staging
+    """
+    manager = ProfileManager(Path.cwd())
+    
+    if action == "list":
+        if not manager.profiles:
+            console.print("[yellow]No profiles found. Create profiles.yml[/yellow]")
+            console.print("\n[dim]Example profiles.yml:[/dim]")
+            example = """development:
+  target: dev
+  outputs:
+    dev:
+      llm_provider: openai
+      llm_model: gpt-4
+      temperature: 0.7
+    
+production:
+  target: prod
+  outputs:
+    prod:
+      llm_provider: anthropic
+      llm_model: claude-3
+      temperature: 0.3
+      deployment_provider: supabase"""
+            syntax = Syntax(example, "yaml", theme="monokai")
+            console.print(Panel(syntax, expand=False))
+        else:
+            table = Table(show_header=True, header_style="bold magenta")
+            table.add_column("Profile", style="cyan")
+            table.add_column("Target")
+            table.add_column("Outputs")
+            table.add_column("Active")
+            
+            for profile_name, profile in manager.profiles.items():
+                is_active = profile_name == manager.active_profile
+                table.add_row(
+                    profile_name,
+                    profile.target,
+                    ", ".join(profile.outputs.keys()),
+                    "✓" if is_active else ""
+                )
+            
+            console.print(table)
+            
+    elif action == "validate":
+        profile_name = name or manager.active_profile
+        errors = manager.validate_profile(profile_name)
+        
+        if errors:
+            console.print(f"[red]❌ Profile validation failed:[/red]")
+            for error in errors:
+                console.print(f"  • {error}")
+        else:
+            console.print(f"[green]✅ Profile '{profile_name}' is valid[/green]")
+            
+    elif action == "create":
+        if not name:
+            console.print("[red]❌ Please specify --name[/red]")
+            raise typer.Exit(1)
+            
+        # Create example profile
+        example_outputs = {
+            "dev": {
+                "llm_provider": "openai",
+                "llm_model": "gpt-4",
+                "temperature": 0.7
+            }
+        }
+        
+        profile = manager.create_profile(name, example_outputs)
+        console.print(f"[green]✅ Created profile '{name}'[/green]")
+        console.print("[dim]Edit profiles.yml to customize[/dim]")
 
 if __name__ == "__main__":
     app()

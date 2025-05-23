@@ -1,0 +1,61 @@
+config:
+  active_profile: development
+
+development:
+  target: dev
+  outputs:
+    dev:
+      llm_provider: openai
+      llm_model: gpt-4
+      temperature: 0.7
+      max_tokens: 2000
+      timeout: 30
+      # Deployment settings
+      deployment_provider: supabase
+      supabase_url: ${SUPABASE_URL}
+      supabase_anon_key: ${SUPABASE_ANON_KEY}
+      table_name: prompts_dev
+      # Test settings
+      test_parallel: true
+      test_fail_fast: false
+      coverage_threshold: 0.8
+
+staging:
+  target: stage
+  outputs:
+    stage:
+      llm_provider: anthropic
+      llm_model: claude-3-sonnet-20240229
+      temperature: 0.5
+      max_tokens: 2000
+      timeout: 60
+      # Deployment settings
+      deployment_provider: supabase
+      supabase_url: ${SUPABASE_URL}
+      supabase_anon_key: ${SUPABASE_ANON_KEY}
+      table_name: prompts_staging
+      # Test settings
+      test_parallel: true
+      test_fail_fast: true
+      coverage_threshold: 0.9
+
+production:
+  target: prod
+  outputs:
+    prod:
+      llm_provider: anthropic
+      llm_model: claude-3-opus-20240229
+      temperature: 0.3
+      max_tokens: 4000
+      timeout: 120
+      retry_count: 5
+      # Deployment settings
+      deployment_provider: supabase
+      supabase_url: ${SUPABASE_URL}
+      supabase_service_key: ${SUPABASE_SERVICE_KEY}
+      table_name: prompts_production
+      # Test settings
+      test_parallel: false
+      test_fail_fast: true
+      coverage_threshold: 0.95
+      test_timeout: 180

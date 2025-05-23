@@ -1,0 +1,53 @@
+name: sentiment_analyzer
+version: 2.0.0
+description: Analyzes sentiment of cleaned customer feedback
+depends_on:
+  - ref('feedback_cleaner')
+variables:
+  - cleaned_feedback
+  - sentiment_model
+  - confidence_threshold
+template: |
+  Analyze sentiment for each feedback item:
+  
+  Feedback Data: {{ cleaned_feedback }}
+  Model Type: {{ sentiment_model }}
+  Confidence Threshold: {{ confidence_threshold }}
+  
+  For each feedback item, determine:
+  1. Overall sentiment (positive/negative/neutral/mixed)
+  2. Confidence score (0-1)
+  3. Sentiment intensity (1-5)
+  4. Key phrases indicating sentiment
+  5. Contextual factors affecting sentiment
+  
+  Return enriched data with sentiment analysis.
+model_config:
+  temperature: 0.3
+  max_tokens: 1500
+examples:
+  - input:
+      cleaned_feedback: '[{"text": "product works great but shipping was slow"}]'
+      sentiment_model: "nuanced"
+      confidence_threshold: 0.7
+    output: |
+      [
+        {
+          "text": "product works great but shipping was slow",
+          "sentiment": "mixed",
+          "confidence": 0.85,
+          "intensity": 3,
+          "positive_phrases": ["works great"],
+          "negative_phrases": ["slow shipping"],
+          "breakdown": {
+            "product": "positive",
+            "shipping": "negative"
+          }
+        }
+      ]
+tags:
+  - nlp
+  - sentiment-analysis
+config:
+  materialized: table
+  indexes: ["sentiment", "confidence"]

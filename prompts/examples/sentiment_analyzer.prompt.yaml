@@ -1,0 +1,43 @@
+name: sentiment_analyzer
+version: 1.0.0
+description: Analyzes sentiment of cleaned customer feedback
+depends_on:
+  - ref('data_cleaner')
+variables:
+  - feedback_text
+  - analysis_depth
+template: |
+  Analyze the sentiment of the following customer feedback:
+  
+  Feedback: {{ feedback_text }}
+  Analysis Depth: {{ analysis_depth }}
+  
+  Provide a sentiment analysis that includes:
+  1. Overall sentiment (positive/negative/neutral)
+  2. Confidence score (0-1)
+  3. Key emotional indicators
+  4. Specific aspects mentioned (if analysis_depth is "detailed")
+  
+  Return as JSON format.
+model_config:
+  temperature: 0.3
+  max_tokens: 500
+examples:
+  - input:
+      feedback_text: "The product quality is excellent but shipping was slow"
+      analysis_depth: "detailed"
+    output: |
+      {
+        "sentiment": "mixed",
+        "confidence": 0.85,
+        "emotions": ["satisfaction", "frustration"],
+        "aspects": {
+          "product_quality": "positive",
+          "shipping": "negative"
+        }
+      }
+tags:
+  - nlp
+  - customer-analytics
+config:
+  materialized: view

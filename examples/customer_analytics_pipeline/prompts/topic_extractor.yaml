@@ -1,0 +1,48 @@
+name: topic_extractor
+version: 1.5.0
+description: Extracts topics and themes from cleaned feedback
+depends_on:
+  - ref('feedback_cleaner')
+variables:
+  - cleaned_feedback
+  - topic_categories
+  - min_confidence
+template: |
+  Extract topics and themes from feedback:
+  
+  Feedback Data: {{ cleaned_feedback }}
+  Available Categories: {{ topic_categories }}
+  Minimum Confidence: {{ min_confidence }}
+  
+  For each feedback item:
+  1. Identify primary topic/category
+  2. Extract secondary topics if present
+  3. Identify specific features or aspects mentioned
+  4. Detect emerging themes not in predefined categories
+  5. Calculate topic confidence scores
+  
+  Group similar topics and provide frequency counts.
+model_config:
+  temperature: 0.4
+  max_tokens: 1500
+examples:
+  - input:
+      cleaned_feedback: '[{"text": "app crashes when uploading photos"}]'
+      topic_categories: ["performance", "features", "usability", "reliability"]
+      min_confidence: 0.6
+    output: |
+      [
+        {
+          "text": "app crashes when uploading photos",
+          "primary_topic": "reliability",
+          "secondary_topics": ["features"],
+          "specific_features": ["photo_upload"],
+          "confidence": 0.9,
+          "keywords": ["crashes", "uploading", "photos"]
+        }
+      ]
+tags:
+  - nlp
+  - topic-modeling
+config:
+  materialized: view

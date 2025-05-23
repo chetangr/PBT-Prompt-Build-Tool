@@ -1,0 +1,135 @@
+# Test file for customer analytics pipeline
+# Tests the entire pipeline from raw feedback to executive dashboard
+
+test_suite: customer_analytics_pipeline
+description: End-to-end tests for customer feedback analysis pipeline
+
+# Test data that flows through the pipeline
+test_data:
+  raw_feedback: |
+    [
+      {
+        "id": "FB001",
+        "source": "support",
+        "timestamp": "2024-01-15T10:30:00Z",
+        "customer_id": "ENT_001",
+        "text": "The latest update completely broke our workflow. App crashes constantly when uploading files. This is unacceptable for enterprise software!",
+        "metadata": {"priority": "high", "account_type": "enterprise", "mrr": 50000}
+      },
+      {
+        "id": "FB002", 
+        "source": "app_review",
+        "timestamp": "2024-01-15T11:00:00Z",
+        "customer_id": "USR_002",
+        "text": "Used to love this app but recent updates made it super slow. Thinking of switching to competitor.",
+        "metadata": {"rating": 2, "previous_rating": 5}
+      }
+    ]
+
+tests:
+  - name: test_feedback_cleaning
+    prompt: feedback_cleaner
+    input:
+      raw_feedback: "{{ test_data.raw_feedback }}"
+      cleaning_rules: "standard"
+    assertions:
+      - type: contains_no_pii
+        description: "Should remove any PII"
+      - type: maintains_structure
+        description: "Should keep JSON structure intact"
+      - type: adds_metadata
+        fields: ["cleaned", "word_count", "language"]
+
+  - name: test_sentiment_analysis
+    prompt: sentiment_analyzer
+    depends_on: feedback_cleaner
+    input:
+      cleaned_feedback: "{{ previous.output }}"
+      sentiment_model: "nuanced"
+      confidence_threshold: 0.7
+    assertions:
+      - type: sentiment_accuracy
+        expected:
+          - sentiment: "negative"
+            confidence_min: 0.8
+      - type: contains_fields
+        fields: ["sentiment", "confidence", "intensity", "breakdown"]
+
+  - name: test_alert_generation
+    prompt: alert_generator
+    depends_on: 
+      - sentiment_analyzer
+      - emotion_classifier
+    input:
+      sentiment_data: "{{ sentiment_analyzer.output }}"
+      emotion_data: "{{ emotion_classifier.output }}"
+      alert_thresholds:
+        negative_threshold: 0.8
+        emotion_intensity: 7
+      alert_channels: ["slack", "email"]
+    assertions:
+      - type: generates_alert
+        priority: "P1"
+        reason: "High negative sentiment from enterprise customer"
+      - type: includes_actions
+        min_actions: 2
+
+  - name: test_executive_dashboard
+    prompt: executive_dashboard
+    depends_on: insight_compiler
+    input:
+      compiled_insights: "{{ insight_compiler.output }}"
+      dashboard_format: "email"
+      time_period: "daily"
+      executive_preferences: "concise, action-focused"
+    assertions:
+      - type: includes_sections
+        sections:
+          - "EXECUTIVE SUMMARY"
+          - "KEY METRICS"
+          - "TOP ISSUES"
+          - "REQUIRED ACTIONS"
+      - type: actionable
+        min_action_items: 3
+      - type: includes_metrics
+        metrics: ["health_score", "sentiment", "alert_count"]
+
+performance_tests:
+  - name: test_pipeline_latency
+    description: "Entire pipeline should complete within 30 seconds"
+    max_duration: 30
+    
+  - name: test_parallel_execution
+    description: "Sentiment and topic extraction should run in parallel"
+    parallel_prompts:
+      - sentiment_analyzer
+      - topic_extractor
+
+integration_tests:
+  - name: test_data_flow
+    description: "Data should flow correctly through all dependencies"
+    validate:
+      - "Each prompt receives output from its dependencies"
+      - "No data is lost between stages"
+      - "Formats remain consistent"
+      
+  - name: test_error_handling
+    description: "Pipeline handles errors gracefully"
+    error_scenarios:
+      - missing_input_data
+      - malformed_json
+      - api_timeout
+    expected_behavior: "Graceful degradation with meaningful errors"
+
+quality_criteria:
+  - name: enterprise_customer_handling
+    description: "Enterprise customers should always trigger P1 alerts"
+    weight: high
+    
+  - name: actionable_insights
+    description: "Dashboard must provide specific, actionable recommendations"
+    weight: high
+    
+  - name: accuracy
+    description: "Sentiment analysis accuracy should be >85%"
+    weight: medium

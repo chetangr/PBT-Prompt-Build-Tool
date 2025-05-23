@@ -1,0 +1,46 @@
+name: raw_feedback_collector
+version: 1.0.0
+description: Collects and aggregates raw customer feedback from multiple sources
+variables:
+  - source_type
+  - time_period
+  - filters
+template: |
+  Collect customer feedback from {{ source_type }} for {{ time_period }}.
+  
+  Apply filters: {{ filters }}
+  
+  Return raw feedback data including:
+  - Feedback ID
+  - Source channel
+  - Timestamp
+  - Customer ID (anonymized)
+  - Raw feedback text
+  - Metadata (rating, tags, etc.)
+  
+  Format as JSON array.
+model_config:
+  temperature: 0.1
+  max_tokens: 2000
+examples:
+  - input:
+      source_type: "support tickets"
+      time_period: "last 7 days"
+      filters: "priority: high"
+    output: |
+      [
+        {
+          "id": "FB001",
+          "source": "support",
+          "timestamp": "2024-01-15T10:30:00Z",
+          "customer_id": "CUST_HASH_123",
+          "text": "Product stopped working after update",
+          "metadata": {"priority": "high", "category": "technical"}
+        }
+      ]
+tags:
+  - data-collection
+  - source
+config:
+  materialized: table
+  schedule: "0 */6 * * *"  # Run every 6 hours
