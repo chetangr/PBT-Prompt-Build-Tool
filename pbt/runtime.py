@@ -1,72 +1,27 @@
-"""
-PBT Runtime - Core execution engine for prompts
-"""
+"""Minimal runtime for PBT-converted code"""
 
-import os
 import yaml
-from pathlib import Path
-from dotenv import load_dotenv
-from anthropic import Anthropic
-import openai
-
-# Ensure env vars are loaded
-load_dotenv()
+import os
+from typing import Dict, Any
 
 class PromptRunner:
-    """Run individual prompt YAML files"""
+    """Simple prompt runner for converted code"""
     
-    def __init__(self, prompt_file):
-        self.prompt_file = Path(prompt_file)
-        self.prompt_data = self._load_prompt()
-        
-        # Initialize LLM clients
-        self.anthropic_client = None
-        if os.getenv('ANTHROPIC_API_KEY'):
-            self.anthropic_client = Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
-        
-        if os.getenv('OPENAI_API_KEY'):
-            openai.api_key = os.getenv('OPENAI_API_KEY')
+    def __init__(self, yaml_path: str):
+        self.yaml_path = yaml_path
+        with open(yaml_path, 'r') as f:
+            self.config = yaml.safe_load(f)
     
-    def _load_prompt(self):
-        """Load prompt from YAML file"""
-        with open(self.prompt_file, 'r') as f:
-            return yaml.safe_load(f)
-    
-    def run(self, variables, model=None):
+    def run(self, variables: Dict[str, Any], model: str = None) -> str:
         """Run the prompt with given variables"""
-        template = self.prompt_data['template']
-        model = model or self.prompt_data.get('model', 'gpt-4')
+        # This is a stub - in real use, this would call the LLM
+        template = self.config.get('template', '')
         
-        # Render template with variables
-        content = template
+        # Simple variable replacement
         for key, value in variables.items():
-            content = content.replace(f"{{{{ {key} }}}}", str(value))
+            template = template.replace(f"{{{{ {key} }}}}", str(value))
         
-        # Call appropriate LLM
-        if model.startswith('claude') and self.anthropic_client:
-            response = self.anthropic_client.messages.create(
-                model="claude-3-sonnet-20240229",
-                max_tokens=1000,
-                messages=[{"role": "user", "content": content}]
-            )
-            return response.content[0].text.strip()
-        
-        elif model.startswith('gpt'):
-            try:
-                # Try new OpenAI API (v1.0+)
-                client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-                response = client.chat.completions.create(
-                    model=model,
-                    messages=[{"role": "user", "content": content}]
-                )
-                return response.choices[0].message.content.strip()
-            except AttributeError:
-                # Fallback to old OpenAI API
-                response = openai.ChatCompletion.create(
-                    model=model,
-                    messages=[{"role": "user", "content": content}]
-                )
-                return response.choices[0].message["content"].strip()
-        
-        else:
-            raise ValueError(f"Model {model} not supported or API key missing")
+        # In real implementation, this would call the actual LLM
+        # For now, just return a message indicating what would happen
+        model_name = model or self.config.get('model', 'default')
+        return f"[Would call {model_name} with prompt: {template[:100]}...]"

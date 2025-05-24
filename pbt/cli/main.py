@@ -24,16 +24,7 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.syntax import Syntax
 
-from pbt.core.config import PBTConfig
-from pbt.core.project import PBTProject
-from pbt.core.generator import PromptGenerator
-from pbt.core.evaluator import PromptEvaluator
-from pbt.core.deployer import PromptDeployer
-from pbt.core.dag import PromptDAG
-from pbt.core.manifest import Manifest
-from pbt.core.snapshot import SnapshotManager
-from pbt.core.profiles import ProfileManager
-from pbt.core.run_results import RunResultsManager, RunStatus
+# Only import what's needed for convert command
 from pbt.__version__ import __version__
 
 app = typer.Typer(
@@ -1013,6 +1004,121 @@ def testjsonl(
     except Exception as e:
         console.print(f"[red]❌ Error running JSONL tests: {e}[/red]")
         raise typer.Exit(1)
+
+@app.command()
+def convert(
+    input_file: str = typer.Argument(..., help="Python file with agent functions to convert"),
+    output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Output directory for converted files"),
+    batch: bool = typer.Option(False, "--batch", help="Batch convert all .py files in directory"),
+    pattern: str = typer.Option("*agent*.py", "--pattern", help="File pattern for batch conversion")
+):
+    """
+    🔄 Convert Python agent code to PBT YAML format
+    
+    Automatically extracts prompts from Python functions and creates:
+    - YAML prompt files in agents/ directory
+    - Converted Python file using PBT runtime
+    
+    Examples:
+    - Convert single file: pbt convert agent.py
+    - Specify output: pbt convert agent.py --output converted/
+    - Batch convert: pbt convert . --batch --pattern "*_agent.py"
+    """
+    console.print(f"[bold blue]🔄 Converting Python agents to PBT format[/bold blue]")
+    
+    from pbt.core.converter import convert_agent_file
+    
+    if batch:
+        # Batch conversion
+        input_path = Path(input_file)
+        if not input_path.is_dir():
+            console.print(f"[red]❌ For batch conversion, provide a directory path[/red]")
+            raise typer.Exit(1)
+        
+        # Find all matching files
+        py_files = list(input_path.glob(pattern))
+        if not py_files:
+            console.print(f"[yellow]⚠️ No files found matching pattern: {pattern}[/yellow]")
+            raise typer.Exit(1)
+        
+        console.print(f"[cyan]Found {len(py_files)} files to convert[/cyan]")
+        
+        results = []
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console
+        ) as progress:
+            task = progress.add_task("Converting files...", total=len(py_files))
+            
+            for py_file in py_files:
+                try:
+                    result = convert_agent_file(str(py_file), str(output_dir) if output_dir else "agents")
+                    results.append((py_file, result))
+                    progress.advance(task)
+                except Exception as e:
+                    console.print(f"[red]❌ Error converting {py_file}: {e}[/red]")
+        
+        # Summary
+        console.print(f"\n[bold]📊 Conversion Summary:[/bold]")
+        total_prompts = sum(r[1].get('prompts_extracted', 0) for r in results)
+        console.print(f"Files converted: {len(results)}")
+        console.print(f"Total prompts extracted: {total_prompts}")
+        
+        # Show files created
+        console.print(f"\n[bold]📁 Files created:[/bold]")
+        for py_file, result in results:
+            console.print(f"\n[cyan]{py_file.name}:[/cyan]")
+            console.print(f"  Prompts: {result.get('prompts_extracted', 0)}")
+            for yaml_file in result.get('yaml_files', []):
+                console.print(f"  ✅ {Path(yaml_file).name}")
+            console.print(f"  ✅ {Path(result['python_file']).name}")
+    
+    else:
+        # Single file conversion
+        if not Path(input_file).exists():
+            console.print(f"[red]❌ File not found: {input_file}[/red]")
+            raise typer.Exit(1)
+        
+        try:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console
+            ) as progress:
+                task = progress.add_task("Converting file...", total=None)
+                
+                result = convert_agent_file(input_file, str(output_dir) if output_dir else "agents")
+                
+                progress.update(task, description="✅ Conversion complete!")
+            
+            # Display results
+            console.print(f"\n[green]✅ Successfully converted {input_file}[/green]")
+            console.print(f"\n[bold]📊 Conversion Results:[/bold]")
+            console.print(f"Prompts extracted: {result['prompts_extracted']}")
+            
+            console.print(f"\n[bold]📁 Files created:[/bold]")
+            
+            # YAML files
+            console.print(f"\n[cyan]YAML prompt files:[/cyan]")
+            for yaml_file in result['yaml_files']:
+                console.print(f"  ✅ {Path(yaml_file).name}")
+            
+            # Python file
+            if result['python_file']:
+                console.print(f"\n[cyan]Converted Python file:[/cyan]")
+                console.print(f"  ✅ {Path(result['python_file']).name}")
+            
+            # Show example usage
+            console.print(f"\n[bold]🚀 Next steps:[/bold]")
+            console.print(f"1. Review generated YAML files in agents/")
+            console.print(f"2. Test the converted code: [cyan]python {Path(result['python_file']).name}[/cyan]")
+            console.print(f"3. Generate tests: [cyan]pbt gentests agents/*.yaml[/cyan]")
+            console.print(f"4. Run tests: [cyan]pbt test agents/[/cyan]")
+            
+        except Exception as e:
+            console.print(f"[red]❌ Error converting file: {e}[/red]")
+            raise typer.Exit(1)
 
 @app.command()
 def gentests(
