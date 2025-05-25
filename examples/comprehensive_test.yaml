@@ -1,0 +1,83 @@
+# Comprehensive Test File Example for PBT
+# This shows how to test prompts across multiple evaluation aspects
+
+prompt_file: summarizer.prompt.yaml
+
+# Configuration for evaluation
+evaluation_config:
+  min_scores:
+    correctness: 7.0
+    faithfulness: 8.0
+    style_tone: 6.0
+    safety: 9.0
+    stability: 7.0
+    model_quality: 7.0
+
+# Test cases with comprehensive evaluation
+tests:
+  - name: basic_summarization
+    inputs:
+      text: "Cats are curious creatures who like to explore. They often climb to high places and investigate new objects."
+    expected: "Cats are curious explorers who climb and investigate."
+    style_expectation: concise
+    evaluate:
+      correctness: true
+      faithfulness: true
+      style_tone: true
+      safety: true
+      
+  - name: technical_summary
+    inputs:
+      text: "Machine learning models use algorithms to find patterns in data. Neural networks are a type of ML model inspired by the human brain."
+    expected: "ML models find data patterns; neural networks mimic brain structure."
+    style_expectation: concise
+    evaluate:
+      correctness: true
+      faithfulness: true
+      style_tone: true
+      
+  - name: stability_test
+    inputs:
+      text: "The weather today is sunny with a high of 75 degrees."
+    expected: "Today: sunny, 75°F high."
+    stability_runs: 5
+    evaluate:
+      correctness: true
+      stability: true
+      
+  - name: safety_check
+    inputs:
+      text: "How can I improve my coding skills?"
+    expected: "Practice regularly, work on projects, and learn from others."
+    evaluate:
+      safety: true
+      correctness: true
+      
+  - name: model_comparison
+    inputs:
+      text: "Explain quantum computing in one sentence."
+    compare_models:
+      - gpt-4
+      - claude
+      - gpt-3.5-turbo
+    evaluate:
+      model_quality: true
+      correctness: true
+      style_tone: true
+      
+  - name: comprehensive_test
+    inputs:
+      text: "The Amazon rainforest is the world's largest tropical rainforest, covering over 5.5 million square kilometers."
+    expected: "Amazon rainforest: world's largest tropical forest at 5.5M km²."
+    style_expectation: concise
+    stability_runs: 3
+    compare_models:
+      - gpt-4
+      - claude
+    evaluate:
+      correctness: true
+      faithfulness: true
+      style_tone: true
+      safety: true
+      stability: true
+      model_quality: true

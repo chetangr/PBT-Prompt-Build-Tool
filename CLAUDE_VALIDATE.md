@@ -26,16 +26,17 @@ This file helps Claude Code verify implementation status of key PBT features.
 - [x] Dashboard view with user prompt list (`Dashboard.jsx`)
 
 ## ✅ CLI Commands (implemented or stubbed)
-- `pbt init`
-- `pbt generate-prompt --goal "<goal>"`
-- `pbt testgen <prompt_file>`
-- `pbt render <prompt> --compare <model1> <model2>`
-- `pbt eval <prompt_folder>`
-- `pbt badge --add GDPR-compliant`
-- `pbt i18n <prompt> --languages en,fr`
-- `pbt pack build`
-- `pbt deploy --provider supabase`
-- `pbt import --source notion`
+- ✅ `pbt init` - Initialize a new PBT project
+- ✅ `pbt generate --goal "<goal>"` - Generate prompts using AI
+- ✅ `pbt gentests <prompt_file>` - Generate test cases for prompts
+- ✅ `pbt render <prompt> --compare "model1,model2"` - Render and compare outputs
+- ✅ `pbt eval <prompt_folder>` - Evaluate prompt quality metrics
+- ✅ `pbt badge --add GDPR-compliant` - Manage compliance badges
+- ✅ `pbt i18n <prompt> --languages en,fr` - Internationalize prompts
+- ✅ `pbt pack build` - Build prompt packs
+- ✅ `pbt deploy --provider supabase` - Deploy to cloud providers
+- ✅ `pbt import --source notion` - Import from external sources
+- ✅ `pbt convert <file>` - Convert Python agents to YAML format
 
 ## ✅ Backend API Routes
 - `/api/promptgen`

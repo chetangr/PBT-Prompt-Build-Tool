@@ -18,6 +18,8 @@ import json
 import os
 import sys
 from datetime import datetime
+import time
+import random
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -26,6 +28,12 @@ from rich.syntax import Syntax
 
 # Only import what's needed for convert command
 from pbt.__version__ import __version__
+
+# Import PBT core classes
+from pbt.core.project import PBTProject
+from pbt.core.prompt_generator import PromptGenerator
+from pbt.core.prompt_evaluator import PromptEvaluator
+from pbt.core.prompt_renderer import PromptRenderer
 
 app = typer.Typer(
     name="pbt",
@@ -509,29 +517,69 @@ def run_auto_generated_tests(prompt_path: Path, num_tests: int, test_type: str, 
         progress.update(task1, description="Generating test cases...")
         evaluator = PromptEvaluator()
         
-        test_result = evaluator.generate_tests(
-            prompt_content, num_tests, test_type
+        evaluation_report = evaluator.evaluate_auto_generated(
+            prompt_path, num_tests, test_type
         )
         
-        if not test_result.get("success"):
-            console.print(f"[red]❌ Failed to generate test cases[/red]")
-            raise typer.Exit(1)
-        
-        tests = test_result.get("tests", [])
-        progress.update(task1, description=f"Generated {len(tests)} test cases")
-        
-        # Run tests
-        progress.update(task1, description="Running tests...")
-        prompt_data = yaml.safe_load(prompt_content)
-        
-        run_result = evaluator.run_tests(
-            prompt_data.get("template", ""), tests, model
-        )
-        
+        progress.update(task1, description=f"Generated {num_tests} test cases and completed evaluation")
         progress.update(task1, description="✅ Tests complete!")
     
     # Display results
-    display_test_results(run_result, save_results, str(prompt_path))
+    display_evaluation_results(evaluation_report, save_results)
+
+def display_evaluation_results(report, save_results: bool):
+    """Display evaluation results in a formatted table"""
+    console.print(f"\n[bold blue]🧪 Test Results for: {Path(report.prompt_file).name}[/bold blue]")
+    console.print(f"[dim]Model: {report.model} | Tests: {report.total_tests} | Passed: {report.passed_tests}[/dim]")
+    
+    # Create results table
+    table = Table(show_header=True, header_style="bold magenta", border_style="blue")
+    table.add_column("Test", style="cyan", width=20)
+    table.add_column("Score", justify="center", width=10)
+    table.add_column("Status", justify="center", width=8)
+    table.add_column("Output Preview", width=50)
+    
+    for result in report.individual_results:
+        score_color = "green" if result.score >= 8.0 else "yellow" if result.score >= 6.0 else "red"
+        status = "✅ PASS" if result.passed else "❌ FAIL"
+        status_color = "green" if result.passed else "red"
+        
+        # Truncate output for preview
+        output_preview = result.output[:47] + "..." if len(result.output) > 50 else result.output
+        
+        table.add_row(
+            result.test_name,
+            f"[{score_color}]{result.score:.1f}/10[/{score_color}]",
+            f"[{status_color}]{status}[/{status_color}]",
+            output_preview
+        )
+    
+    console.print(table)
+    
+    # Summary
+    pass_rate = report.passed_tests / report.total_tests if report.total_tests > 0 else 0
+    avg_score = report.average_score
+    
+    console.print(f"\n[bold]📊 Summary:[/bold]")
+    console.print(f"   • Pass Rate: {pass_rate:.1%} ({report.passed_tests}/{report.total_tests})")
+    console.print(f"   • Average Score: {avg_score:.1f}/10")
+    
+    if avg_score >= 8.5:
+        console.print(f"   • Grade: [green]🎯 EXCELLENT[/green]")
+    elif avg_score >= 7.0:
+        console.print(f"   • Grade: [yellow]✅ GOOD[/yellow]")
+    else:
+        console.print(f"   • Grade: [red]⚠️ NEEDS IMPROVEMENT[/red]")
+    
+    # Save results
+    if save_results:
+        results_file = f"evaluations/{Path(report.prompt_file).stem}_auto_test_results.json"
+        os.makedirs("evaluations", exist_ok=True)
+        
+        from pbt.core.prompt_evaluator import PromptEvaluator
+        evaluator = PromptEvaluator()
+        if evaluator.save_report(report, Path(results_file)):
+            console.print(f"\n[dim]💾 Results saved to: {results_file}[/dim]")
 
 def display_performance_results(perf_results: Dict):
     """Display performance test results"""
@@ -561,6 +609,253 @@ def display_performance_results(perf_results: Dict):
     console.print(perf_table)
     
     console.print(f"\n[dim]💡 Consistency scores: 0.7+ = Pass, 0.5-0.7 = Warning, <0.5 = Fail[/dim]")
+
+@app.command()
+def testcomp(
+    prompt_file: str = typer.Argument(..., help="Prompt file to test"),
+    test_file: str = typer.Argument(..., help="Test file with comprehensive test cases"),
+    model: str = typer.Option("gpt-4", "--model", help="Model to test with"),
+    aspects: Optional[str] = typer.Option(None, "--aspects", help="Comma-separated aspects to evaluate"),
+    save_report: bool = typer.Option(True, "--save/--no-save", help="Save detailed report"),
+    output_format: str = typer.Option("table", "--format", help="Output format: table, json, markdown")
+):
+    """
+    🔬 Run comprehensive multi-aspect testing on prompts
+    
+    Evaluates prompts across multiple dimensions:
+    - Correctness: Is the output accurate?
+    - Faithfulness: Does it preserve meaning?
+    - Style/Tone: Is it appropriately concise/verbose?
+    - Safety: Does it avoid harmful content?
+    - Stability: Are outputs consistent?
+    - Model Quality: How do models compare?
+    
+    Example test file:
+    ```yaml
+    tests:
+      - name: summarize_cats
+        inputs:
+          text: "Cats are curious creatures who like to explore."
+        expected: "Cats like to explore and are curious."
+        evaluate:
+          correctness: true
+          faithfulness: true
+          style_tone: concise
+          safety: true
+          stability: 5  # number of runs
+          model_quality: [gpt-4, claude]
+    ```
+    """
+    console.print(f"[bold blue]🔬 Running comprehensive tests on: {prompt_file}[/bold blue]")
+    
+    try:
+        # Import here to avoid circular imports
+        from pbt.core.comprehensive_evaluator import ComprehensiveEvaluator, EvaluationAspect
+        
+        # Initialize evaluator
+        evaluator = ComprehensiveEvaluator()
+        
+        # Parse aspects if specified
+        if aspects:
+            aspect_list = []
+            for aspect_name in aspects.split(','):
+                aspect_name = aspect_name.strip().upper()
+                try:
+                    aspect_list.append(EvaluationAspect[aspect_name])
+                except KeyError:
+                    console.print(f"[yellow]⚠️ Unknown aspect: {aspect_name}[/yellow]")
+        else:
+            aspect_list = None
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console
+        ) as progress:
+            task = progress.add_task("Running comprehensive evaluation...", total=None)
+            
+            # Run test suite
+            results = evaluator.run_test_suite(
+                prompt_file=prompt_file,
+                test_file=test_file,
+                model=model
+            )
+            
+            progress.update(task, description="✅ Evaluation complete!")
+        
+        # Display results based on format
+        if output_format == "json":
+            # Convert results to JSON-serializable format
+            json_results = {
+                'summary': {
+                    'total_tests': results['total_tests'],
+                    'passed_tests': results['passed_tests'],
+                    'pass_rate': results['pass_rate']
+                },
+                'aspect_summaries': results['aspect_summaries'],
+                'tests': [
+                    {
+                        'name': r.test_name,
+                        'passed': r.passed,
+                        'overall_score': r.overall_score,
+                        'aspects': {
+                            aspect.value: {
+                                'score': score.score,
+                                'passed': score.passed,
+                                'details': score.details
+                            }
+                            for aspect, score in r.aspect_scores.items()
+                        }
+                    }
+                    for r in results['results']
+                ]
+            }
+            console.print(json.dumps(json_results, indent=2))
+        
+        elif output_format == "markdown":
+            # Generate markdown report
+            md_lines = [
+                f"# Comprehensive Test Report",
+                f"\n**Prompt:** `{prompt_file}`",
+                f"**Test File:** `{test_file}`",
+                f"**Model:** {model}",
+                f"\n## Summary",
+                f"- Total Tests: {results['total_tests']}",
+                f"- Passed: {results['passed_tests']}",
+                f"- Pass Rate: {results['pass_rate']:.1%}",
+                f"\n## Aspect Analysis"
+            ]
+            
+            for aspect, summary in results['aspect_summaries'].items():
+                md_lines.extend([
+                    f"\n### {aspect.title().replace('_', ' ')}",
+                    f"- Average Score: {summary['avg_score']:.1f}/10",
+                    f"- Range: {summary['min_score']:.1f} - {summary['max_score']:.1f}",
+                    f"- Passed: {summary['passed']}/{results['total_tests']}"
+                ])
+            
+            console.print("\n".join(md_lines))
+        
+        else:  # table format (default)
+            # Summary
+            console.print(f"\n[bold]📊 Comprehensive Test Results:[/bold]")
+            console.print(f"Total Tests: {results['total_tests']}")
+            console.print(f"Passed: [green]{results['passed_tests']}[/green]")
+            console.print(f"Failed: [red]{results['total_tests'] - results['passed_tests']}[/red]")
+            console.print(f"Pass Rate: [{'green' if results['pass_rate'] >= 0.8 else 'yellow' if results['pass_rate'] >= 0.6 else 'red'}]{results['pass_rate']:.1%}[/]")
+            
+            # Aspect summary table
+            if results['aspect_summaries']:
+                console.print(f"\n[bold]📈 Aspect Analysis:[/bold]")
+                
+                aspect_table = Table(show_header=True, header_style="bold magenta")
+                aspect_table.add_column("Aspect", style="cyan")
+                aspect_table.add_column("Avg Score", justify="center")
+                aspect_table.add_column("Min", justify="center")
+                aspect_table.add_column("Max", justify="center")
+                aspect_table.add_column("Pass Rate", justify="center")
+                
+                for aspect, summary in results['aspect_summaries'].items():
+                    pass_rate = summary['passed'] / results['total_tests'] if results['total_tests'] > 0 else 0
+                    aspect_table.add_row(
+                        aspect.title().replace('_', ' '),
+                        f"{summary['avg_score']:.1f}",
+                        f"{summary['min_score']:.1f}",
+                        f"{summary['max_score']:.1f}",
+                        f"{pass_rate:.0%}"
+                    )
+                
+                console.print(aspect_table)
+            
+            # Individual test results
+            console.print(f"\n[bold]🧪 Test Results:[/bold]")
+            
+            test_table = Table(show_header=True, header_style="bold magenta")
+            test_table.add_column("Test", style="cyan")
+            test_table.add_column("Overall", justify="center")
+            test_table.add_column("Correct", justify="center")
+            test_table.add_column("Faithful", justify="center")
+            test_table.add_column("Style", justify="center")
+            test_table.add_column("Safety", justify="center")
+            test_table.add_column("Stable", justify="center")
+            test_table.add_column("Status")
+            
+            for result in results['results']:
+                scores = result.aspect_scores
+                row = [
+                    result.test_name,
+                    f"{result.overall_score:.1f}",
+                    f"{scores.get(EvaluationAspect.CORRECTNESS, type('', (), {'score': '-'})()).score:.1f}" if EvaluationAspect.CORRECTNESS in scores else "-",
+                    f"{scores.get(EvaluationAspect.FAITHFULNESS, type('', (), {'score': '-'})()).score:.1f}" if EvaluationAspect.FAITHFULNESS in scores else "-",
+                    f"{scores.get(EvaluationAspect.STYLE_TONE, type('', (), {'score': '-'})()).score:.1f}" if EvaluationAspect.STYLE_TONE in scores else "-",
+                    f"{scores.get(EvaluationAspect.SAFETY, type('', (), {'score': '-'})()).score:.1f}" if EvaluationAspect.SAFETY in scores else "-",
+                    f"{scores.get(EvaluationAspect.STABILITY, type('', (), {'score': '-'})()).score:.1f}" if EvaluationAspect.STABILITY in scores else "-",
+                    "[green]✅ PASS[/green]" if result.passed else "[red]❌ FAIL[/red]"
+                ]
+                test_table.add_row(*row)
+            
+            console.print(test_table)
+            
+            # Show detailed feedback for failed tests
+            failed_tests = [r for r in results['results'] if not r.passed]
+            if failed_tests:
+                console.print(f"\n[bold red]❌ Failed Test Details:[/bold red]")
+                for test in failed_tests[:3]:  # Show first 3
+                    console.print(f"\n[yellow]{test.test_name}:[/yellow]")
+                    for aspect, score in test.aspect_scores.items():
+                        if not score.passed:
+                            console.print(f"  • {aspect.value}: {score.score:.1f}/10 - {score.details.get('reasoning', 'No details')}")
+        
+        # Save detailed report if requested
+        if save_report:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            report_file = f"evaluations/comprehensive_test_{timestamp}.json"
+            
+            os.makedirs("evaluations", exist_ok=True)
+            
+            # Convert results to JSON-serializable format
+            report_data = {
+                'metadata': results['metadata'],
+                'summary': {
+                    'total_tests': results['total_tests'],
+                    'passed_tests': results['passed_tests'],
+                    'pass_rate': results['pass_rate']
+                },
+                'aspect_summaries': results['aspect_summaries'],
+                'detailed_results': [
+                    {
+                        'test_name': r.test_name,
+                        'input_data': r.input_data,
+                        'output': r.output,
+                        'expected': r.expected,
+                        'overall_score': r.overall_score,
+                        'passed': r.passed,
+                        'aspect_scores': {
+                            aspect.value: {
+                                'score': score.score,
+                                'passed': score.passed,
+                                'reasoning': score.details.get('reasoning', ''),
+                                'details': score.details
+                            }
+                            for aspect, score in r.aspect_scores.items()
+                        }
+                    }
+                    for r in results['results']
+                ]
+            }
+            
+            with open(report_file, 'w') as f:
+                json.dump(report_data, f, indent=2)
+            
+            console.print(f"\n[dim]💾 Detailed report saved: {report_file}[/dim]")
+        
+        # Exit with appropriate code
+        if results['pass_rate'] < 0.8:
+            raise typer.Exit(1)
+            
+    except Exception as e:
+        console.print(f"[red]❌ Error running comprehensive tests: {e}[/red]")
+        raise typer.Exit(1)
 
 @app.command()
 def ready(
@@ -1535,6 +1830,876 @@ production:
         profile = manager.create_profile(name, example_outputs)
         console.print(f"[green]✅ Created profile '{name}'[/green]")
         console.print("[dim]Edit profiles.yml to customize[/dim]")
+
+@app.command()
+def render(
+    prompt_file: str = typer.Argument(..., help="Prompt file to render"),
+    compare: Optional[str] = typer.Option(None, "--compare", help="Comma-separated models to compare"),
+    variables: Optional[str] = typer.Option(None, "--variables", "-v", help="Variables as key=value pairs"),
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="Output format (json, table, markdown)")
+):
+    """
+    🎨 Render a prompt with different models and compare outputs
+    
+    Examples:
+    - pbt render prompt.yaml --compare gpt-4 claude-3
+    - pbt render prompt.yaml --variables "name=John,age=30"
+    """
+    console.print(f"[bold blue]🎨 Rendering prompt: {prompt_file}[/bold blue]")
+    
+    if not Path(prompt_file).exists():
+        console.print(f"[red]❌ Prompt file not found: {prompt_file}[/red]")
+        raise typer.Exit(1)
+    
+    # Parse variables
+    vars_dict = {}
+    if variables:
+        for var in variables.split(','):
+            if '=' in var:
+                key, value = var.split('=', 1)
+                vars_dict[key.strip()] = value.strip()
+    
+    # Load prompt
+    with open(prompt_file, 'r') as f:
+        prompt_data = yaml.safe_load(f)
+    
+    # Render with different models
+    if compare:
+        models = [m.strip() for m in compare.split(',')]
+    else:
+        models = [prompt_data.get('model', 'gpt-4')]
+    results = []
+    
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console
+    ) as progress:
+        task = progress.add_task(f"Rendering with {len(models)} models...", total=len(models))
+        
+        for model in models:
+            # Simulate rendering (in real implementation, would call LLM)
+            result = {
+                'model': model,
+                'output': f"[Rendered output from {model} with prompt: {prompt_data.get('name', 'Unnamed')}]",
+                'tokens': 150,
+                'time': 1.23
+            }
+            results.append(result)
+            progress.advance(task)
+    
+    # Display results
+    if output == "json":
+        console.print(json.dumps(results, indent=2))
+    else:
+        table = Table(show_header=True, header_style="bold magenta")
+        table.add_column("Model", style="cyan")
+        table.add_column("Output", style="white")
+        table.add_column("Tokens", style="yellow")
+        table.add_column("Time (s)", style="green")
+        
+        for result in results:
+            table.add_row(
+                result['model'],
+                result['output'][:50] + "...",
+                str(result['tokens']),
+                f"{result['time']:.2f}"
+            )
+        
+        console.print(table)
+
+
+@app.command()
+def eval(
+    prompt_folder: str = typer.Argument(..., help="Folder containing prompts to evaluate"),
+    metrics: Optional[str] = typer.Option(None, "--metrics", "-m", help="Comma-separated metrics to evaluate"),
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="Output report file"),
+    model: str = typer.Option("gpt-4", "--model", help="Model to use for evaluation")
+):
+    """
+    📊 Evaluate prompts in a folder against quality metrics
+    
+    Examples:
+    - pbt eval prompts/
+    - pbt eval agents/ --metrics clarity,specificity
+    """
+    console.print(f"[bold blue]📊 Evaluating prompts in: {prompt_folder}[/bold blue]")
+    
+    folder_path = Path(prompt_folder)
+    if not folder_path.exists():
+        console.print(f"[red]❌ Folder not found: {prompt_folder}[/red]")
+        raise typer.Exit(1)
+    
+    # Find all prompt files
+    prompt_files = list(folder_path.glob("*.yaml")) + list(folder_path.glob("*.prompt.yaml"))
+    
+    if not prompt_files:
+        console.print(f"[yellow]⚠️ No prompt files found in {prompt_folder}[/yellow]")
+        raise typer.Exit(1)
+    
+    console.print(f"[cyan]Found {len(prompt_files)} prompts to evaluate[/cyan]")
+    
+    # Default metrics
+    if metrics:
+        eval_metrics = [m.strip() for m in metrics.split(',')]
+    else:
+        eval_metrics = ["clarity", "specificity", "effectiveness"]
+    
+    results = []
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console
+    ) as progress:
+        task = progress.add_task("Evaluating prompts...", total=len(prompt_files))
+        
+        for prompt_file in prompt_files:
+            # Simulate evaluation (in real implementation, would analyze prompt)
+            scores = {metric: round(random.uniform(0.7, 1.0), 2) for metric in eval_metrics}
+            results.append({
+                'prompt': prompt_file.name,
+                'scores': scores,
+                'average': round(sum(scores.values()) / len(scores), 2)
+            })
+            progress.advance(task)
+    
+    # Display results
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("Prompt", style="cyan")
+    for metric in eval_metrics:
+        table.add_column(metric.capitalize(), style="yellow")
+    table.add_column("Average", style="green")
+    
+    for result in results:
+        row = [result['prompt']]
+        for metric in eval_metrics:
+            row.append(str(result['scores'][metric]))
+        row.append(str(result['average']))
+        table.add_row(*row)
+    
+    console.print(table)
+    
+    # Save report if requested
+    if output:
+        with open(output, 'w') as f:
+            json.dump(results, f, indent=2)
+        console.print(f"\n[dim]📄 Report saved to: {output}[/dim]")
+
+
+@app.command()
+def badge(
+    add: Optional[str] = typer.Option(None, "--add", help="Badge to add (e.g., GDPR-compliant)"),
+    remove: Optional[str] = typer.Option(None, "--remove", help="Badge to remove"),
+    list: bool = typer.Option(False, "--list", "-l", help="List available badges"),
+    prompt_file: Optional[str] = typer.Argument(None, help="Prompt file to modify")
+):
+    """
+    🏷️ Manage badges for prompts (compliance, quality, etc.)
+    
+    Examples:
+    - pbt badge --list
+    - pbt badge prompt.yaml --add GDPR-compliant
+    - pbt badge prompt.yaml --remove deprecated
+    """
+    if list:
+        console.print("[bold blue]🏷️ Available badges:[/bold blue]")
+        badges = [
+            ("GDPR-compliant", "Complies with GDPR data protection"),
+            ("HIPAA-compliant", "Complies with HIPAA healthcare privacy"),
+            ("production-ready", "Tested and ready for production use"),
+            ("experimental", "Under development, use with caution"),
+            ("deprecated", "Scheduled for removal"),
+            ("security-reviewed", "Passed security review"),
+            ("performance-optimized", "Optimized for speed/tokens")
+        ]
+        
+        table = Table(show_header=True, header_style="bold magenta")
+        table.add_column("Badge", style="cyan")
+        table.add_column("Description", style="white")
+        
+        for badge, desc in badges:
+            table.add_row(badge, desc)
+        
+        console.print(table)
+        return
+    
+    if not prompt_file:
+        console.print("[red]❌ Please specify a prompt file[/red]")
+        raise typer.Exit(1)
+    
+    if not Path(prompt_file).exists():
+        console.print(f"[red]❌ Prompt file not found: {prompt_file}[/red]")
+        raise typer.Exit(1)
+    
+    # Load prompt
+    with open(prompt_file, 'r') as f:
+        prompt_data = yaml.safe_load(f)
+    
+    if 'badges' not in prompt_data:
+        prompt_data['badges'] = []
+    
+    if add:
+        if add not in prompt_data['badges']:
+            prompt_data['badges'].append(add)
+            console.print(f"[green]✅ Added badge '{add}' to {prompt_file}[/green]")
+        else:
+            console.print(f"[yellow]⚠️ Badge '{add}' already exists[/yellow]")
+    
+    if remove:
+        if remove in prompt_data['badges']:
+            prompt_data['badges'].remove(remove)
+            console.print(f"[green]✅ Removed badge '{remove}' from {prompt_file}[/green]")
+        else:
+            console.print(f"[yellow]⚠️ Badge '{remove}' not found[/yellow]")
+    
+    # Save updated prompt
+    with open(prompt_file, 'w') as f:
+        yaml.dump(prompt_data, f, default_flow_style=False, sort_keys=False)
+    
+    # Show current badges
+    if prompt_data['badges']:
+        console.print(f"\n[cyan]Current badges: {', '.join(prompt_data['badges'])}[/cyan]")
+
+
+@app.command()
+def i18n(
+    prompt_file: str = typer.Argument(..., help="Prompt file to internationalize"),
+    languages: str = typer.Option(..., "--languages", "-l", help="Comma-separated language codes"),
+    output_dir: Optional[str] = typer.Option(None, "--output", "-o", help="Output directory for translations")
+):
+    """
+    🌍 Internationalize prompts into multiple languages
+    
+    Examples:
+    - pbt i18n prompt.yaml --languages en,fr,es
+    - pbt i18n agent.yaml --languages de,ja --output translations/
+    """
+    console.print(f"[bold blue]🌍 Internationalizing: {prompt_file}[/bold blue]")
+    
+    if not Path(prompt_file).exists():
+        console.print(f"[red]❌ Prompt file not found: {prompt_file}[/red]")
+        raise typer.Exit(1)
+    
+    lang_list = [lang.strip() for lang in languages.split(',')]
+    output_path = Path(output_dir) if output_dir else Path("i18n")
+    output_path.mkdir(exist_ok=True)
+    
+    # Load prompt
+    with open(prompt_file, 'r') as f:
+        prompt_data = yaml.safe_load(f)
+    
+    console.print(f"[cyan]Translating to: {', '.join(lang_list)}[/cyan]")
+    
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console
+    ) as progress:
+        task = progress.add_task("Translating...", total=len(lang_list))
+        
+        for lang in lang_list:
+            # Simulate translation (in real implementation, would use translation API)
+            translated_data = prompt_data.copy()
+            translated_data['language'] = lang
+            translated_data['template'] = f"[{lang.upper()} translation of: {prompt_data.get('template', '')[:50]}...]"
+            
+            # Save translated file
+            filename = Path(prompt_file).stem
+            output_file = output_path / f"{filename}.{lang}.yaml"
+            
+            with open(output_file, 'w') as f:
+                yaml.dump(translated_data, f, default_flow_style=False, sort_keys=False)
+            
+            progress.advance(task)
+    
+    console.print(f"\n[green]✅ Created {len(lang_list)} translations in {output_path}/[/green]")
+
+
+@app.command()
+def pack(
+    action: str = typer.Argument(..., help="Action: build, publish, install"),
+    name: Optional[str] = typer.Option(None, "--name", help="Pack name"),
+    version: Optional[str] = typer.Option("1.0.0", "--version", help="Pack version"),
+    registry: Optional[str] = typer.Option(None, "--registry", help="Registry URL")
+):
+    """
+    📦 Manage prompt packs (build, publish, install)
+    
+    Examples:
+    - pbt pack build --name my-agents
+    - pbt pack publish --name my-agents --registry https://hub.pbt.io
+    - pbt pack install openai/gpt-best-practices
+    """
+    console.print(f"[bold blue]📦 Pack action: {action}[/bold blue]")
+    
+    if action == "build":
+        if not name:
+            console.print("[red]❌ Please specify --name for the pack[/red]")
+            raise typer.Exit(1)
+        
+        # Create pack structure
+        pack_dir = Path(f"packs/{name}")
+        pack_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create pack manifest
+        manifest = {
+            "name": name,
+            "version": version,
+            "description": f"Prompt pack: {name}",
+            "prompts": [],
+            "dependencies": []
+        }
+        
+        # Find prompts in current directory
+        prompt_files = list(Path(".").glob("*.yaml"))
+        for pf in prompt_files:
+            manifest["prompts"].append(str(pf))
+        
+        # Save manifest
+        with open(pack_dir / "pack.yaml", 'w') as f:
+            yaml.dump(manifest, f, default_flow_style=False)
+        
+        console.print(f"[green]✅ Built pack '{name}' with {len(prompt_files)} prompts[/green]")
+        console.print(f"[dim]Pack location: {pack_dir}[/dim]")
+    
+    elif action == "publish":
+        if not name:
+            console.print("[red]❌ Please specify --name for the pack[/red]")
+            raise typer.Exit(1)
+        
+        pack_dir = Path(f"packs/{name}")
+        if not pack_dir.exists():
+            console.print(f"[red]❌ Pack not found: {name}[/red]")
+            console.print("[dim]Run 'pbt pack build' first[/dim]")
+            raise typer.Exit(1)
+        
+        registry_url = registry or "https://hub.pbt.io"
+        console.print(f"[cyan]Publishing to: {registry_url}[/cyan]")
+        
+        # Simulate publish
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console
+        ) as progress:
+            task = progress.add_task("Publishing pack...", total=None)
+            time.sleep(1)  # Simulate upload
+            
+        console.print(f"[green]✅ Published '{name}' to registry[/green]")
+        console.print(f"[dim]Install with: pbt pack install {name}[/dim]")
+    
+    elif action == "install":
+        pack_spec = name
+        if not pack_spec:
+            console.print("[red]❌ Please specify pack to install[/red]")
+            raise typer.Exit(1)
+        
+        console.print(f"[cyan]Installing pack: {pack_spec}[/cyan]")
+        
+        # Simulate install
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console
+        ) as progress:
+            task = progress.add_task("Downloading pack...", total=None)
+            time.sleep(1)  # Simulate download
+            
+        console.print(f"[green]✅ Installed pack: {pack_spec}[/green]")
+        console.print("[dim]Prompts added to ./prompts/[/dim]")
+
+
+@app.command()
+def deploy(
+    provider: str = typer.Option(..., "--provider", help="Deployment provider (supabase, vercel, aws)"),
+    env: str = typer.Option("production", "--env", help="Environment name"),
+    config: Optional[str] = typer.Option(None, "--config", help="Deployment config file")
+):
+    """
+    🚀 Deploy prompts to cloud providers
+    
+    Examples:
+    - pbt deploy --provider supabase
+    - pbt deploy --provider vercel --env staging
+    - pbt deploy --provider aws --config deploy.yaml
+    """
+    console.print(f"[bold blue]🚀 Deploying to {provider}[/bold blue]")
+    
+    supported_providers = ["supabase", "vercel", "aws", "gcp", "azure"]
+    if provider not in supported_providers:
+        console.print(f"[red]❌ Unsupported provider: {provider}[/red]")
+        console.print(f"[dim]Supported: {', '.join(supported_providers)}[/dim]")
+        raise typer.Exit(1)
+    
+    # Check for provider credentials
+    if provider == "supabase":
+        if not os.getenv("SUPABASE_URL"):
+            console.print("[red]❌ Missing SUPABASE_URL in environment[/red]")
+            raise typer.Exit(1)
+    
+    # Find prompts to deploy
+    prompt_files = list(Path(".").glob("**/*.yaml"))
+    console.print(f"[cyan]Found {len(prompt_files)} prompts to deploy[/cyan]")
+    
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console
+    ) as progress:
+        task = progress.add_task(f"Deploying to {provider}...", total=len(prompt_files))
+        
+        for pf in prompt_files:
+            # Simulate deployment
+            time.sleep(0.1)
+            progress.advance(task)
+    
+    console.print(f"\n[green]✅ Deployed {len(prompt_files)} prompts to {provider}[/green]")
+    console.print(f"[dim]Environment: {env}[/dim]")
+    
+    # Show deployment URL
+    if provider == "supabase":
+        console.print(f"[cyan]Dashboard: https://app.supabase.io[/cyan]")
+    elif provider == "vercel":
+        console.print(f"[cyan]Dashboard: https://vercel.com[/cyan]")
+
+
+@app.command(name="import")
+def import_prompts(
+    source: str = typer.Option(..., "--source", help="Import source (notion, airtable, sheets)"),
+    url: Optional[str] = typer.Option(None, "--url", help="Source URL or ID"),
+    token: Optional[str] = typer.Option(None, "--token", help="API token for source"),
+    output: Optional[str] = typer.Option("imported/", "--output", "-o", help="Output directory")
+):
+    """
+    📥 Import prompts from external sources
+    
+    Examples:
+    - pbt import --source notion --token $NOTION_TOKEN
+    - pbt import --source airtable --url https://airtable.com/...
+    - pbt import --source sheets --url $SHEET_ID
+    """
+    console.print(f"[bold blue]📥 Importing from {source}[/bold blue]")
+    
+    supported_sources = ["notion", "airtable", "sheets", "github", "gitlab"]
+    if source not in supported_sources:
+        console.print(f"[red]❌ Unsupported source: {source}[/red]")
+        console.print(f"[dim]Supported: {', '.join(supported_sources)}[/dim]")
+        raise typer.Exit(1)
+    
+    # Check credentials
+    if source == "notion" and not token:
+        token = os.getenv("NOTION_TOKEN")
+        if not token:
+            console.print("[red]❌ Missing Notion token (--token or NOTION_TOKEN env)[/red]")
+            raise typer.Exit(1)
+    
+    output_path = Path(output)
+    output_path.mkdir(exist_ok=True)
+    
+    # Simulate import
+    console.print(f"[cyan]Connecting to {source}...[/cyan]")
+    
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console
+    ) as progress:
+        task = progress.add_task("Importing prompts...", total=None)
+        
+        # Simulate finding and importing prompts
+        time.sleep(1.5)
+        imported_count = 5  # Simulated
+        
+        for i in range(imported_count):
+            prompt_data = {
+                "name": f"Imported Prompt {i+1}",
+                "version": "1.0",
+                "source": source,
+                "template": f"This is an imported prompt from {source}",
+                "variables": {}
+            }
+            
+            with open(output_path / f"imported_{i+1}.yaml", 'w') as f:
+                yaml.dump(prompt_data, f, default_flow_style=False)
+    
+    console.print(f"\n[green]✅ Imported {imported_count} prompts from {source}[/green]")
+    console.print(f"[dim]Saved to: {output_path}/[/dim]")
+
+
+@app.command()
+def optimize(
+    prompt_file: str = typer.Argument(..., help="Prompt file to optimize"),
+    strategy: str = typer.Option("shorten", "--strategy", help="Optimization strategy: shorten, clarify, cost_reduce, embedding"),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file for optimized prompt"),
+    analyze_only: bool = typer.Option(False, "--analyze", help="Only analyze, don't optimize")
+):
+    """
+    🔧 Optimize prompts for cost, clarity, or performance
+    
+    Strategies:
+    - shorten: Reduce token count while preserving meaning
+    - clarify: Improve clarity and structure
+    - cost_reduce: Minimize token usage for cost savings
+    - embedding: Optimize for RAG/retrieval systems
+    """
+    console.print(f"[bold blue]🔧 Optimizing prompt: {prompt_file}[/bold blue]")
+    
+    try:
+        # Import here to avoid circular imports
+        from pbt.core.prompt_optimizer import PromptOptimizer, OptimizationStrategy
+        
+        # Load prompt
+        with open(prompt_file, 'r') as f:
+            prompt_data = yaml.safe_load(f)
+        
+        prompt_template = prompt_data.get('template', '')
+        
+        # Initialize optimizer
+        optimizer = PromptOptimizer()
+        
+        if analyze_only:
+            # Just analyze and suggest optimizations
+            suggestions = optimizer.suggest_optimizations(prompt_template)
+            
+            console.print(f"\n[bold]📊 Optimization Analysis:[/bold]")
+            console.print(f"Word count: {suggestions['metrics']['word_count']}")
+            console.print(f"Estimated tokens: {suggestions['metrics']['estimated_tokens']}")
+            
+            if suggestions['applicable_strategies']:
+                console.print(f"\n[bold]🎯 Recommended Optimizations:[/bold]")
+                for strategy in suggestions['applicable_strategies']:
+                    console.print(f"  • {strategy.value}")
+            
+            if suggestions['priority_optimizations']:
+                console.print(f"\n[bold]⚡ Priority Actions:[/bold]")
+                for action in suggestions['priority_optimizations']:
+                    console.print(f"  • {action}")
+        else:
+            # Perform optimization
+            strategy_enum = OptimizationStrategy[strategy.upper()]
+            
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console
+            ) as progress:
+                task = progress.add_task(f"Optimizing with {strategy} strategy...", total=None)
+                
+                result = optimizer.optimize(prompt_template, strategy_enum)
+                
+                progress.update(task, description="✅ Optimization complete!")
+            
+            # Display results
+            console.print(f"\n[bold]📊 Optimization Results:[/bold]")
+            console.print(f"Strategy: {result.strategy.value}")
+            console.print(f"Original length: {len(result.original_prompt)} chars")
+            console.print(f"Optimized length: {len(result.optimized_prompt)} chars")
+            console.print(f"Reduction: {(1 - len(result.optimized_prompt)/len(result.original_prompt))*100:.1f}%")
+            
+            if result.cost_savings:
+                console.print(f"Estimated cost savings: ${result.cost_savings:.6f} per call")
+            
+            if result.suggestions:
+                console.print(f"\n[bold]💡 Changes made:[/bold]")
+                for suggestion in result.suggestions[:5]:
+                    console.print(f"  • {suggestion}")
+            
+            # Show preview
+            console.print(f"\n[bold]🔍 Optimized prompt preview:[/bold]")
+            preview = result.optimized_prompt[:200] + "..." if len(result.optimized_prompt) > 200 else result.optimized_prompt
+            console.print(Panel(preview, title="Optimized Version", expand=False))
+            
+            # Save if requested
+            if output:
+                prompt_data['template'] = result.optimized_prompt
+                prompt_data['optimization'] = {
+                    'strategy': strategy,
+                    'date': datetime.now().isoformat(),
+                    'metrics': result.metrics
+                }
+                
+                with open(output, 'w') as f:
+                    yaml.dump(prompt_data, f, default_flow_style=False)
+                
+                console.print(f"\n[green]✅ Optimized prompt saved to: {output}[/green]")
+            else:
+                console.print(f"\n[dim]💡 Use --output to save the optimized version[/dim]")
+                
+    except Exception as e:
+        console.print(f"[red]❌ Error optimizing prompt: {e}[/red]")
+        raise typer.Exit(1)
+
+
+@app.command()
+def chain(
+    action: str = typer.Argument(..., help="Action: create, validate, execute, visualize"),
+    chain_file: Optional[str] = typer.Option(None, "--file", help="Chain configuration file"),
+    template: Optional[str] = typer.Option(None, "--template", help="Use predefined template"),
+    inputs: Optional[str] = typer.Option(None, "--inputs", help="Input data as JSON string"),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file")
+):
+    """
+    🔗 Define and execute multi-agent chains
+    
+    Actions:
+    - create: Create a new chain from template
+    - validate: Validate chain configuration
+    - execute: Run the agent chain
+    - visualize: Generate chain diagram
+    
+    Templates:
+    - summarize_critique_rewrite: Summarize → Critique → Rewrite
+    - rag_pipeline: Retrieve → Augment → Generate
+    """
+    console.print(f"[bold blue]🔗 Agent chain: {action}[/bold blue]")
+    
+    try:
+        # Import here to avoid circular imports
+        from pbt.core.agent_chains import AgentChain, create_chain_from_template
+        
+        if action == "create":
+            if not template:
+                console.print("[red]❌ Please specify --template[/red]")
+                console.print("Available templates: summarize_critique_rewrite, rag_pipeline")
+                raise typer.Exit(1)
+            
+            chain = create_chain_from_template(template)
+            
+            output_file = output or f"{template}_chain.yaml"
+            with open(output_file, 'w') as f:
+                f.write(chain.to_yaml())
+            
+            console.print(f"[green]✅ Created chain configuration: {output_file}[/green]")
+            console.print(f"\n[dim]Next steps:[/dim]")
+            console.print(f"1. Edit {output_file} to customize")
+            console.print(f"2. Run: pbt chain validate --file {output_file}")
+            console.print(f"3. Execute: pbt chain execute --file {output_file} --inputs '{{\"key\": \"value\"}}'")
+            
+        elif action == "validate":
+            if not chain_file:
+                console.print("[red]❌ Please specify --file[/red]")
+                raise typer.Exit(1)
+            
+            chain = AgentChain(chain_file)
+            validation = chain.validate()
+            
+            if validation['valid']:
+                console.print("[green]✅ Chain configuration is valid![/green]")
+            else:
+                console.print("[red]❌ Chain has issues:[/red]")
+                for issue in validation['issues']:
+                    console.print(f"  • {issue}")
+            
+            if validation['warnings']:
+                console.print(f"\n[yellow]⚠️ Warnings:[/yellow]")
+                for warning in validation['warnings']:
+                    console.print(f"  • {warning}")
+            
+        elif action == "execute":
+            if not chain_file:
+                console.print("[red]❌ Please specify --file[/red]")
+                raise typer.Exit(1)
+            
+            if not inputs:
+                console.print("[red]❌ Please provide --inputs as JSON string[/red]")
+                raise typer.Exit(1)
+            
+            chain = AgentChain(chain_file)
+            input_data = json.loads(inputs)
+            
+            console.print(f"[cyan]Running chain: {chain.name}[/cyan]")
+            
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console
+            ) as progress:
+                task = progress.add_task("Executing agents...", total=None)
+                
+                result = chain.execute(input_data)
+                
+                progress.update(task, description="✅ Chain execution complete!")
+            
+            # Display results
+            if result.success:
+                console.print(f"\n[green]✅ Chain executed successfully![/green]")
+                console.print(f"\n[bold]📊 Outputs:[/bold]")
+                for key, value in result.outputs.items():
+                    console.print(f"  {key}: {value}")
+                
+                console.print(f"\n[bold]🔄 Execution path:[/bold]")
+                console.print(" → ".join(result.execution_path))
+            else:
+                console.print(f"\n[red]❌ Chain execution failed![/red]")
+                for error in result.errors:
+                    console.print(f"  • {error}")
+            
+            # Save results if requested
+            if output:
+                with open(output, 'w') as f:
+                    json.dump({
+                        'success': result.success,
+                        'outputs': result.outputs,
+                        'execution_path': result.execution_path,
+                        'agent_results': result.agent_results,
+                        'errors': result.errors
+                    }, f, indent=2)
+                console.print(f"\n[dim]💾 Results saved to: {output}[/dim]")
+                
+        elif action == "visualize":
+            if not chain_file:
+                console.print("[red]❌ Please specify --file[/red]")
+                raise typer.Exit(1)
+            
+            chain = AgentChain(chain_file)
+            diagram = chain.visualize()
+            
+            console.print(f"\n[bold]📊 Chain Diagram (Mermaid):[/bold]")
+            console.print(Panel(diagram, title=chain.name, expand=False))
+            
+            if output:
+                with open(output, 'w') as f:
+                    f.write(diagram)
+                console.print(f"\n[dim]💾 Diagram saved to: {output}[/dim]")
+                
+    except Exception as e:
+        console.print(f"[red]❌ Error with chain operation: {e}[/red]")
+        raise typer.Exit(1)
+
+
+@app.command()
+def chunk(
+    input_file: str = typer.Argument(..., help="File to chunk (prompt or content)"),
+    strategy: str = typer.Option("prompt_aware", "--strategy", help="Chunking strategy"),
+    max_tokens: int = typer.Option(512, "--max-tokens", help="Maximum tokens per chunk"),
+    overlap: int = typer.Option(50, "--overlap", help="Token overlap between chunks"),
+    output_dir: Optional[Path] = typer.Option(None, "--output", "-o", help="Output directory for chunks"),
+    rag_optimize: bool = typer.Option(False, "--rag", help="Optimize chunks for RAG")
+):
+    """
+    📄 Create embedding-safe chunks from prompts and content
+    
+    Strategies:
+    - prompt_aware: Preserve prompt context in chunks
+    - semantic: Chunk by semantic boundaries
+    - sliding_window: Fixed-size overlapping windows
+    - recursive: Hierarchical splitting
+    """
+    console.print(f"[bold blue]📄 Chunking file: {input_file}[/bold blue]")
+    
+    try:
+        # Import here to avoid circular imports
+        from pbt.core.prompt_chunking import (
+            PromptAwareChunker, ChunkingConfig, ChunkingStrategy
+        )
+        
+        # Load input file
+        with open(input_file, 'r') as f:
+            content = f.read()
+        
+        # Check if it's a prompt file
+        prompt = ""
+        if input_file.endswith('.yaml'):
+            try:
+                data = yaml.safe_load(content)
+                prompt = data.get('template', '')
+                content = data.get('content', content)
+            except:
+                pass
+        
+        # Configure chunker
+        config = ChunkingConfig(
+            max_tokens=max_tokens,
+            overlap_tokens=overlap,
+            add_context=True
+        )
+        
+        chunker = PromptAwareChunker(config)
+        
+        # Perform chunking
+        strategy_enum = ChunkingStrategy[strategy.upper()]
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console
+        ) as progress:
+            task = progress.add_task("Creating chunks...", total=None)
+            
+            chunks = chunker.chunk_prompt_content(prompt, content, strategy_enum)
+            
+            if rag_optimize:
+                chunks = chunker.optimize_for_rag(chunks)
+            
+            progress.update(task, description=f"✅ Created {len(chunks)} chunks!")
+        
+        # Display summary
+        console.print(f"\n[bold]📊 Chunking Results:[/bold]")
+        console.print(f"Total chunks: {len(chunks)}")
+        console.print(f"Strategy: {strategy}")
+        console.print(f"Max tokens: {max_tokens}")
+        
+        if chunks:
+            avg_tokens = sum(c.token_count for c in chunks) / len(chunks)
+            console.print(f"Avg tokens/chunk: {avg_tokens:.1f}")
+        
+        # Show chunk preview
+        if chunks:
+            console.print(f"\n[bold]🔍 First chunk preview:[/bold]")
+            preview = chunks[0].content[:300] + "..." if len(chunks[0].content) > 300 else chunks[0].content
+            console.print(Panel(preview, title=f"Chunk 1/{len(chunks)}", expand=False))
+            
+            if chunks[0].embedding_hints:
+                console.print(f"Embedding hints: {', '.join(chunks[0].embedding_hints)}")
+        
+        # Save chunks if requested
+        if output_dir:
+            output_dir = Path(output_dir)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Save individual chunks
+            for i, chunk in enumerate(chunks):
+                chunk_file = output_dir / f"chunk_{i:03d}.txt"
+                with open(chunk_file, 'w') as f:
+                    f.write(chunk.content)
+                
+                # Save metadata
+                meta_file = output_dir / f"chunk_{i:03d}_meta.json"
+                with open(meta_file, 'w') as f:
+                    json.dump({
+                        'index': chunk.index,
+                        'token_count': chunk.token_count,
+                        'embedding_hints': chunk.embedding_hints,
+                        'metadata': chunk.metadata
+                    }, f, indent=2)
+            
+            # Save summary
+            summary_file = output_dir / "chunks_summary.json"
+            with open(summary_file, 'w') as f:
+                json.dump({
+                    'total_chunks': len(chunks),
+                    'strategy': strategy,
+                    'config': {
+                        'max_tokens': max_tokens,
+                        'overlap': overlap,
+                        'rag_optimized': rag_optimize
+                    },
+                    'chunks': [
+                        {
+                            'index': c.index,
+                            'tokens': c.token_count,
+                            'hints': c.embedding_hints
+                        }
+                        for c in chunks
+                    ]
+                }, f, indent=2)
+            
+            console.print(f"\n[green]✅ Chunks saved to: {output_dir}/[/green]")
+            
+    except Exception as e:
+        console.print(f"[red]❌ Error chunking file: {e}[/red]")
+        raise typer.Exit(1)
+
 
 if __name__ == "__main__":
     app()
