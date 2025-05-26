@@ -3,10 +3,32 @@
 import json
 import yaml
 import time
+import logging
 from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
 from dataclasses import dataclass
 from datetime import datetime
+
+# Configure logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# Create formatter for structured logging
+formatter = logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s'
+)
+
+# Console handler
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
+
+# File handler
+log_dir = Path('./logs')
+log_dir.mkdir(exist_ok=True)
+file_handler = logging.FileHandler(log_dir / 'pbt_evaluator.log')
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
 
 
 @dataclass
@@ -42,12 +64,15 @@ class PromptEvaluator:
     def __init__(self, model: str = "claude"):
         self.model = model
         self.mock_mode = True  # For now, use mock responses
+        logger.info(f"Initialized PromptEvaluator with model: {model}")
     
     def evaluate_test_file(self, test_file_path: Path, model: str = None) -> EvaluationReport:
         """Evaluate prompt using a test file"""
+        logger.info(f"Starting evaluation of test file: {test_file_path}")
         
         if model:
             self.model = model
+            logger.debug(f"Using model: {model} for evaluation")
         
         # Load test file
         with open(test_file_path) as f:
