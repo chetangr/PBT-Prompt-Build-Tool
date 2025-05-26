@@ -481,7 +481,7 @@ Chunks saved to: chunks/
 **Validation Steps:**
 ```bash
 # 1. Start monitoring
-pbt serve --port 8000 &
+pbt web --port 8000 &
 
 # 2. Run load test
 pbt test tests/*.yaml --parallel --monitor

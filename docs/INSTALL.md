@@ -65,7 +65,7 @@ pbt init --name "Test Project"
 1. **Configure API Keys**: Copy `.env.example` to `.env` and add your API keys
 2. **Generate Prompts**: `pbt generate --goal "Your prompt goal"`
 3. **Test Prompts**: `pbt test your_prompt.yaml`
-4. **Start Server**: `pbt serve`
+4. **Start Web UI**: `pbt web`
 
 ## Troubleshooting
 

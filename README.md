@@ -19,7 +19,7 @@ PBT is like **dbt + Terraform for LLM prompts** - a comprehensive command-line t
 | ✅ **Prompt Versioning** | ✨ **IMPLEMENTED** | Use `.prompt.yaml` files to version and diff prompts like code |
 | ✅ **Prompt Testing** | ✨ **IMPLEMENTED** | Add input/output test cases and run `pbt test` to ensure correctness |
 | ✅ **Prompt Rendering** | ✨ **IMPLEMENTED** | Use `pbt render` to simulate prompts with real data |
-| ✅ **Model Comparison** | ✨ **IMPLEMENTED** | Compare outputs across GPT-4, Claude, Mistral with `pbt render --compare` |
+| ✅ **Model Comparison** | ✨ **IMPLEMENTED** | Compare outputs across GPT-4, Claude, Mistral with `pbt compare` or Web UI |
 | ✅ **Prompt Evaluation** | ✨ **IMPLEMENTED** | Use `pbt eval` to judge output quality using Claude or OpenAI |
 | ✅ **Prompt Optimization** | ✨ **IMPLEMENTED** | Auto-shorten/refine prompts to save costs with `pbt optimize` |
 
@@ -37,7 +37,7 @@ PBT is like **dbt + Terraform for LLM prompts** - a comprehensive command-line t
 | ✅ **Multi-agent Chains** | ✨ **IMPLEMENTED** | Define agent flows: Summarizer → Critic → Rewriter via `pbt chain` |
 | ✅ **Prompt-aware Chunking** | ✨ **IMPLEMENTED** | Create embedding-safe chunks that retain context via `pbt chunk` |
 | ✅ **PromptPack Build + Deploy** | ✨ **IMPLEMENTED** | Deploy to Supabase, Firebase, LangChain via `pbt deploy` |
-| ✅ **Prompt Dashboard** | ✨ **IMPLEMENTED** | Web UI to view all prompts, tests, versions via `pbt serve` |
+| ✅ **Prompt Dashboard** | ✨ **IMPLEMENTED** | Interactive Web UI for visual model comparison via `pbt web` |
 
 **🌐 Team & Enterprise**
 | Feature | Status | Description |
@@ -90,6 +90,10 @@ pbt generate --goal "Summarize customer feedback into actionable insights"
 ```bash
 # Run basic tests
 pbt test customer-feedback-summarizer.prompt.yaml
+
+# Launch interactive web UI for visual comparison
+pbt web
+# Opens browser at http://localhost:8080 for side-by-side model comparison
 
 # Run comprehensive multi-aspect evaluation
 pbt testcomp customer-feedback-summarizer.prompt.yaml tests/comprehensive.yaml
@@ -296,7 +300,7 @@ tests:
 | `pbt deps` | Show dependencies | `pbt deps --target analyzer --format mermaid` |
 | `pbt docs` | Generate documentation | `pbt docs --serve --theme minimal` |
 | `pbt import` | Import from external sources | `pbt import --source notion --token $NOTION_TOKEN` |
-| `pbt serve` | Start web dashboard | `pbt serve --host 0.0.0.0 --port 8000` |
+| `pbt web` | Start web dashboard | `pbt web --host 0.0.0.0 --port 8000` |
 
 ## 🏗️ Project Structure
 

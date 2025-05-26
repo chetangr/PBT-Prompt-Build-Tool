@@ -63,7 +63,6 @@ class PromptEvaluator:
     
     def __init__(self, model: str = "claude"):
         self.model = model
-        self.mock_mode = True  # For now, use mock responses
         logger.info(f"Initialized PromptEvaluator with model: {model}")
     
     def evaluate_test_file(self, test_file_path: Path, model: str = None) -> EvaluationReport:
@@ -204,77 +203,25 @@ class PromptEvaluator:
         return rendered
     
     def _execute_prompt(self, prompt: str, model: str) -> str:
-        """Execute prompt with specified model (mock implementation)"""
-        
-        # Mock responses for different prompt types
-        prompt_lower = prompt.lower()
-        
-        if "summarize" in prompt_lower:
-            return self._mock_summarization_response(prompt)
-        elif "translate" in prompt_lower:
-            return self._mock_translation_response(prompt)
-        elif "email" in prompt_lower:
-            return self._mock_email_response(prompt)
-        elif "analyze" in prompt_lower and "feedback" in prompt_lower:
-            return self._mock_feedback_analysis_response(prompt)
-        elif "classify" in prompt_lower:
-            return self._mock_classification_response(prompt)
-        else:
-            return self._mock_generic_response(prompt)
+        """Execute prompt with specified model"""
+        try:
+            from ..integrations.llm import get_llm_provider
+            import asyncio
+            
+            async def run():
+                provider = await get_llm_provider(model)
+                response = await provider.complete(
+                    prompt=prompt,
+                    temperature=0.7,
+                    max_tokens=1000
+                )
+                return response.content
+            
+            return asyncio.run(run())
+        except Exception as e:
+            logger.error(f"Error executing prompt with {model}: {e}")
+            return f"Error: {str(e)}"
     
-    def _mock_summarization_response(self, prompt: str) -> str:
-        """Mock summarization response"""
-        return "This is a concise summary highlighting the key points from the provided text. The main themes include technology transformation, industry impact, and future implications."
-    
-    def _mock_translation_response(self, prompt: str) -> str:
-        """Mock translation response"""
-        if "spanish" in prompt.lower():
-            return "Esta es una traducción al español del texto proporcionado."
-        elif "french" in prompt.lower():
-            return "Ceci est une traduction française du texte fourni."
-        else:
-            return "This is a translation of the provided text to the target language."
-    
-    def _mock_email_response(self, prompt: str) -> str:
-        """Mock email response"""
-        return """Subject: Professional Email Response
-
-Dear Recipient,
-
-I hope this email finds you well. I wanted to reach out regarding the topic you mentioned.
-
-I've reviewed the information and have the following points to share:
-- Key insight 1
-- Important consideration 2  
-- Recommended next steps
-
-Please let me know if you have any questions or would like to discuss this further.
-
-Best regards,
-[Your name]"""
-    
-    def _mock_feedback_analysis_response(self, prompt: str) -> str:
-        """Mock feedback analysis response"""
-        return """**Key Themes:**
-• Customer satisfaction with product quality
-• Delivery and shipping experience
-• Customer service interactions
-• Value for money perception
-
-**Sentiment Analysis:** Mixed (60% positive, 30% neutral, 10% negative)
-
-**Recommended Actions:**
-1. Improve packaging and shipping processes
-2. Enhance customer service training
-3. Consider price-value communication strategy"""
-    
-    def _mock_classification_response(self, prompt: str) -> str:
-        """Mock classification response"""
-        return "Classification: Positive"
-    
-    def _mock_generic_response(self, prompt: str) -> str:
-        """Mock generic response"""
-        return "This is a helpful and relevant response to your request. The analysis shows positive indicators and suggests actionable next steps."
     
     def _score_output(self, output: str, expected: Optional[str], expected_keywords: List[str], quality_criteria: str) -> float:
         """Score the output based on various criteria"""

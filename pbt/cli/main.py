@@ -72,11 +72,11 @@ def show_welcome_screen():
     features = [
         "🎯 AI-powered prompt generation",
         "🧪 Cross-model testing & comparison", 
-        "📦 Prompt packs for team collaboration",
+        "🌐 Interactive web UI for visual comparison",
         "🔄 Convert existing agent code to PBT",
-        "📊 Claude-based evaluation judge",
-        "🌐 Visual IDE + CLI interface",
-        "🔒 Enterprise auth & marketplace"
+        "📊 Automatic scoring with expected outputs",
+        "💰 Cost optimization & performance metrics",
+        "🔗 Multi-agent chains & RAG optimization"
     ]
     
     for feature in features:
@@ -109,9 +109,9 @@ def show_welcome_screen():
     console.print("[bold magenta]🎯 Common Use Cases:[/bold magenta]")
     use_cases = [
         "[bold]Convert existing agents:[/bold] [cyan]pbt convert your_agent.py[/cyan]",
-        "[bold]Compare models:[/bold] [cyan]pbt compare --prompt \"Hello\" --models claude gpt-4[/cyan]",
-        "[bold]Start web UI:[/bold] [cyan]pbt serve[/cyan]",
-        "[bold]Deploy prompts:[/bold] [cyan]pbt deploy --provider supabase[/cyan]"
+        "[bold]Compare models:[/bold] [cyan]pbt compare prompts/my_prompt.yaml --models claude,gpt-4[/cyan]",
+        "[bold]Start web UI:[/bold] [cyan]pbt web[/cyan]",
+        "[bold]Optimize for cost:[/bold] [cyan]pbt optimize prompts/my_prompt.yaml --target cost[/cyan]"
     ]
     
     for use_case in use_cases:
@@ -124,11 +124,11 @@ def show_welcome_screen():
         ("init", "Initialize new PBT project"),
         ("generate", "AI-powered prompt generation"),
         ("test", "Test prompts with evaluation"),
-        ("compare", "Compare across models"),
-        ("convert", "Convert Python agents to PBT"),
-        ("serve", "Start web interface"),
-        ("deploy", "Deploy to cloud providers"),
-        ("eval", "Run evaluations")
+        ("compare", "Compare prompts across models"),
+        ("web", "Launch interactive web UI"),
+        ("render", "Render prompts with variables"),
+        ("optimize", "Optimize prompts for cost/quality"),
+        ("convert", "Convert Python agents to PBT")
     ]
     
     for cmd, desc in commands:
@@ -621,6 +621,57 @@ def display_comparison_markdown(comparison_result):
         md_output += f"### {model}\n\n```\n{result['output'][:500]}...\n```\n\n"
     
     console.print(Syntax(md_output, "markdown"))
+
+
+@app.command()
+def web(
+    port: int = typer.Option(8080, "--port", "-p", help="Port to run the web UI on"),
+    host: str = typer.Option("127.0.0.1", "--host", help="Host to bind to"),
+    open_browser: bool = typer.Option(True, "--open/--no-open", help="Open browser automatically")
+):
+    """🌐 Launch the PBT Studio web interface"""
+    console.print("[bold blue]🌐 Starting PBT Studio Web Interface...[/bold blue]")
+    
+    try:
+        import uvicorn
+        import webbrowser
+        from pbt.web.app import app as web_app
+        
+        # Create necessary directories
+        Path("pbt/web/static").mkdir(parents=True, exist_ok=True)
+        
+        # Open browser after a short delay
+        if open_browser:
+            def open_browser_delayed():
+                import time
+                time.sleep(1.5)  # Wait for server to start
+                webbrowser.open(f"http://{host}:{port}")
+            
+            import threading
+            browser_thread = threading.Thread(target=open_browser_delayed)
+            browser_thread.daemon = True
+            browser_thread.start()
+        
+        console.print(f"[green]✅ Web UI starting at: http://{host}:{port}[/green]")
+        console.print("[dim]Press Ctrl+C to stop the server[/dim]")
+        
+        # Run the web server
+        uvicorn.run(
+            "pbt.web.app:app",
+            host=host,
+            port=port,
+            reload=False,
+            log_level="info"
+        )
+        
+    except ImportError as e:
+        console.print("[red]❌ Web UI dependencies not installed[/red]")
+        console.print("[yellow]Run: pip install 'prompt-build-tool[web]' to install web dependencies[/yellow]")
+        console.print(f"[dim]Missing: {e}[/dim]")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]❌ Failed to start web UI: {e}[/red]")
+        raise typer.Exit(1)
 
 
 def display_test_results(run_result: Dict, save_results: bool, test_source: str = "prompt"):

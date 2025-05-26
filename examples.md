@@ -12,8 +12,9 @@ This guide provides comprehensive examples for all PBT (Prompt Build Tool) comma
 6. [Optimization](#optimization)
 7. [Multi-Agent Chains](#multi-agent-chains)
 8. [Chunking & RAG](#chunking--rag)
-9. [Deployment & Publishing](#deployment--publishing)
-10. [Utility Commands](#utility-commands)
+9. [Web UI - Visual Model Comparison](#web-ui---visual-model-comparison)
+10. [Deployment & Publishing](#deployment--publishing)
+11. [Utility Commands](#utility-commands)
 
 ---
 
@@ -965,6 +966,185 @@ chunks/
 ├── chunk_001.txt
 ├── chunk_001_meta.json
 └── chunks_summary.json    # Overall summary
+```
+
+---
+
+## Web UI - Visual Model Comparison
+
+### `pbt web` - Launch interactive web interface
+
+**Input:**
+```bash
+pbt web
+```
+
+**Output:**
+```
+🌐 Starting PBT Studio Web Interface...
+✅ Web UI starting at: http://127.0.0.1:8080
+Press Ctrl+C to stop the server
+
+INFO:     Started server process [12345]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8080 (Press CTRL+C to quit)
+```
+
+**Browser opens automatically showing the PBT Studio interface**
+
+#### Custom port and host:
+
+**Input:**
+```bash
+pbt web --port 3000 --host 0.0.0.0
+```
+
+**Output:**
+```
+🌐 Starting PBT Studio Web Interface...
+✅ Web UI starting at: http://0.0.0.0:3000
+Press Ctrl+C to stop the server
+```
+
+#### Without auto-opening browser:
+
+**Input:**
+```bash
+pbt web --no-open
+```
+
+### Web UI Features
+
+#### 1. Visual Prompt Editor
+- Syntax highlighting for prompt templates
+- Auto-detection of variables
+- Real-time preview
+
+#### 2. Side-by-Side Model Comparison
+
+**Example Web UI Comparison Result:**
+```
+┌─────────────────────────────────────────────────┐
+│ Claude         Score: 9.2/10    0.45s   $0.0036│
+├─────────────────────────────────────────────────┤
+│ The text discusses three main points about      │
+│ artificial intelligence: its rapid advancement, │
+│ transformative impact on industries, and the   │
+│ important ethical considerations we must       │
+│ address as the technology evolves.             │
+└─────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────┐
+│ GPT-4          Score: 9.0/10    1.20s   $0.0114│
+├─────────────────────────────────────────────────┤
+│ This passage highlights three key aspects of    │
+│ AI development: technological progress,         │
+│ industrial applications, and ethical concerns   │
+│ that require careful consideration moving      │
+│ forward.                                        │
+└─────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────┐
+│ GPT-3.5        Score: 7.5/10    0.35s   $0.0006│
+├─────────────────────────────────────────────────┤
+│ The text talks about AI growing fast, changing  │
+│ how businesses work, and needing to think      │
+│ about ethics and safety.                       │
+└─────────────────────────────────────────────────┘
+
+💡 Recommendations:
+🏆 Best Quality: Claude
+⚡ Best Speed: GPT-3.5 Turbo
+💰 Best Cost: GPT-3.5 Turbo
+⚖️ Balanced: Claude
+```
+
+#### 3. Automatic Scoring with Expected Output
+
+**In the Web UI:**
+1. Enter your prompt template
+2. Set variable values
+3. Provide expected output (optional)
+4. Select models to compare
+5. Click "Compare Models"
+
+**Evaluation Metrics Shown:**
+- Exact match score
+- Word overlap percentage
+- Length similarity
+- Semantic similarity (if enabled)
+
+#### 4. Export Options
+
+**JSON Export Example:**
+```json
+{
+  "request_id": "20240115_143025_123456",
+  "timestamp": "2024-01-15T14:30:25.123Z",
+  "prompt": "Summarize in {{sentences}} sentences: {{text}}",
+  "variables": {
+    "sentences": 3,
+    "text": "Long article text..."
+  },
+  "models": [
+    {
+      "model": "claude",
+      "output": "Summary text...",
+      "tokens": 450,
+      "cost": 0.0036,
+      "response_time": 0.45,
+      "score": 9.2,
+      "evaluation": {
+        "exact_match": 0.0,
+        "contains_expected": 0.9,
+        "length_ratio": 0.95,
+        "word_overlap": 0.85
+      }
+    }
+  ],
+  "recommendations": {
+    "best_quality": "claude",
+    "best_speed": "gpt-3.5-turbo",
+    "best_cost": "gpt-3.5-turbo",
+    "balanced": "claude"
+  }
+}
+```
+
+**Markdown Export Example:**
+```markdown
+# Model Comparison Report
+
+**Date**: 2024-01-15 14:30:25
+
+## Prompt
+```
+Summarize in {{sentences}} sentences: {{text}}
+```
+
+## Variables
+- **sentences**: 3
+- **text**: Long article text...
+
+## Results
+
+### Claude
+- **Response Time**: 0.45s
+- **Tokens**: 450
+- **Cost**: $0.0036
+- **Score**: 9.2/10
+
+**Output:**
+```
+Summary text generated by Claude...
+```
+
+## Recommendations
+- **Best Quality**: Claude
+- **Best Speed**: GPT-3.5 Turbo
+- **Best Cost**: GPT-3.5 Turbo
+- **Balanced**: Claude
 ```
 
 ---

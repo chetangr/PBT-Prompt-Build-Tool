@@ -76,6 +76,13 @@ setup(
         "passlib[bcrypt]>=1.7.4",
     ],
     extras_require={
+        "web": [
+            "fastapi>=0.104.0",
+            "uvicorn[standard]>=0.24.0",
+            "aiohttp>=3.9.0",
+            "websockets>=12.0",
+            "aiofiles>=23.2.1",
+        ],
         "server": [
             "fastapi>=0.104.0",
             "uvicorn[standard]>=0.24.0",
@@ -128,6 +135,9 @@ setup(
             "templates/*.sql",
             "static/*",
             "config/*.json",
+            "web/static/*",
+            "web/static/css/*",
+            "web/static/js/*",
         ],
     },
     zip_safe=False,

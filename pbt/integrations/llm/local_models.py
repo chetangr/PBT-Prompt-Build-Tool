@@ -3,8 +3,13 @@
 import os
 import asyncio
 from typing import Dict, Any, Optional, List, AsyncIterator
-import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+
+try:
+    import torch
+    from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
 
 from .base import BaseLLMProvider, LLMResponse, LLMConfig
 
@@ -27,6 +32,11 @@ class LocalModelProvider(BaseLLMProvider):
     
     def __init__(self, config: Optional[LLMConfig] = None):
         super().__init__(config)
+        if not TORCH_AVAILABLE:
+            raise ImportError(
+                "Local models require torch and transformers. "
+                "Install with: pip install torch transformers"
+            )
         self.model = None
         self.tokenizer = None
         self.pipeline = None
