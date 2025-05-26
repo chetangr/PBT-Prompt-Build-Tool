@@ -453,6 +453,176 @@ def run_test_file(test_file_path: Path, model: str, save_results: bool):
     if 'performance_results' in run_result:
         display_performance_results(run_result['performance_results'])
 
+@app.command()
+def compare(
+    prompt_file: Path = typer.Argument(..., help="Path to the prompt file to compare"),
+    models: str = typer.Option("claude,gpt-4,gpt-3.5-turbo", "--models", "-m", help="Comma-separated list of models to compare"),
+    variables: Optional[str] = typer.Option(None, "--vars", "-v", help="JSON string of variables to use"),
+    save_results: bool = typer.Option(True, "--save-results", "-s", help="Save comparison results"),
+    output_format: str = typer.Option("table", "--output", "-o", help="Output format: table, json, markdown")
+):
+    """🔍 Compare prompt performance across multiple models"""
+    console.print(f"[bold blue]🔍 Comparing models for prompt: {prompt_file}[/bold blue]")
+    
+    # Parse models
+    model_list = [m.strip() for m in models.split(",")]
+    console.print(f"[cyan]📊 Models to compare: {', '.join(model_list)}[/cyan]")
+    
+    # Parse variables
+    vars_dict = {}
+    if variables:
+        try:
+            vars_dict = json.loads(variables)
+            console.print(f"[cyan]📝 Variables: {json.dumps(vars_dict, indent=2)}[/cyan]")
+        except json.JSONDecodeError:
+            console.print("[red]❌ Invalid JSON format for variables[/red]")
+            raise typer.Exit(1)
+    
+    # Verify prompt file exists
+    if not prompt_file.exists():
+        console.print(f"[red]❌ Prompt file not found: {prompt_file}[/red]")
+        raise typer.Exit(1)
+    
+    # Initialize renderer and run comparison
+    renderer = PromptRenderer()
+    
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console
+    ) as progress:
+        task = progress.add_task(f"Comparing {len(model_list)} models...", total=len(model_list))
+        
+        comparison_result = renderer.compare_models(
+            prompt_file=prompt_file,
+            variables=vars_dict,
+            models=model_list
+        )
+        
+        progress.update(task, completed=len(model_list))
+    
+    # Display results based on format
+    if output_format == "json":
+        console.print_json(json.dumps({
+            "prompt_file": comparison_result.prompt_file,
+            "models": comparison_result.models,
+            "variables": comparison_result.variables,
+            "results": comparison_result.results,
+            "recommendations": comparison_result.recommendations,
+            "timestamp": comparison_result.timestamp
+        }, indent=2))
+    elif output_format == "markdown":
+        display_comparison_markdown(comparison_result)
+    else:  # table format
+        display_comparison_table(comparison_result)
+    
+    # Save results if requested
+    if save_results:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        results_file = f"evaluations/comparison_{timestamp}.json"
+        
+        os.makedirs("evaluations", exist_ok=True)
+        with open(results_file, 'w') as f:
+            json.dump({
+                "prompt_file": comparison_result.prompt_file,
+                "models": comparison_result.models,
+                "variables": comparison_result.variables,
+                "results": comparison_result.results,
+                "recommendations": comparison_result.recommendations,
+                "timestamp": comparison_result.timestamp
+            }, f, indent=2)
+        
+        console.print(f"\n[dim]💾 Results saved to: {results_file}[/dim]")
+
+
+def display_comparison_table(comparison_result):
+    """Display model comparison in a formatted table"""
+    console.print("\n[bold]📊 Model Comparison Results:[/bold]\n")
+    
+    # Create comparison table
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("Model", style="cyan", width=15)
+    table.add_column("Response Time", justify="center", width=12)
+    table.add_column("Tokens", justify="center", width=10)
+    table.add_column("Cost", justify="center", width=10)
+    table.add_column("Quality Score", justify="center", width=12)
+    
+    for model, result in comparison_result.results.items():
+        stats = result['stats']
+        response_time = f"{stats['response_time']:.2f}s"
+        tokens = str(stats['tokens'])
+        cost = f"${stats['cost']:.4f}"
+        quality = f"{stats['quality_score']:.1f}/10"
+        
+        # Color code quality score
+        if stats['quality_score'] >= 8:
+            quality_style = "[green]" + quality + "[/green]"
+        elif stats['quality_score'] >= 6:
+            quality_style = "[yellow]" + quality + "[/yellow]"
+        else:
+            quality_style = "[red]" + quality + "[/red]"
+        
+        table.add_row(model, response_time, tokens, cost, quality_style)
+    
+    console.print(table)
+    
+    # Display recommendations
+    console.print("\n[bold]💡 Recommendations:[/bold]")
+    for category, recommendation in comparison_result.recommendations.items():
+        emoji = {
+            "best_quality": "🏆",
+            "best_speed": "⚡",
+            "best_cost": "💰",
+            "balanced": "⚖️"
+        }.get(category, "📌")
+        console.print(f"{emoji} {category.replace('_', ' ').title()}: [green]{recommendation}[/green]")
+    
+    # Show sample outputs
+    console.print("\n[bold]📝 Sample Outputs:[/bold]\n")
+    for model, result in comparison_result.results.items():
+        console.print(Panel(
+            result['output'][:200] + "..." if len(result['output']) > 200 else result['output'],
+            title=f"[cyan]{model}[/cyan]",
+            border_style="dim"
+        ))
+
+
+def display_comparison_markdown(comparison_result):
+    """Display model comparison in markdown format"""
+    md_output = f"""# Model Comparison Results
+
+**Prompt File**: `{comparison_result.prompt_file}`  
+**Timestamp**: {comparison_result.timestamp}
+
+## Models Compared
+{', '.join(comparison_result.models)}
+
+## Variables Used
+```json
+{json.dumps(comparison_result.variables, indent=2)}
+```
+
+## Performance Metrics
+
+| Model | Response Time | Tokens | Cost | Quality Score |
+|-------|--------------|--------|------|---------------|
+"""
+    
+    for model, result in comparison_result.results.items():
+        stats = result['stats']
+        md_output += f"| {model} | {stats['response_time']:.2f}s | {stats['tokens']} | ${stats['cost']:.4f} | {stats['quality_score']:.1f}/10 |\n"
+    
+    md_output += "\n## Recommendations\n\n"
+    for category, recommendation in comparison_result.recommendations.items():
+        md_output += f"- **{category.replace('_', ' ').title()}**: {recommendation}\n"
+    
+    md_output += "\n## Sample Outputs\n\n"
+    for model, result in comparison_result.results.items():
+        md_output += f"### {model}\n\n```\n{result['output'][:500]}...\n```\n\n"
+    
+    console.print(Syntax(md_output, "markdown"))
+
+
 def display_test_results(run_result: Dict, save_results: bool, test_source: str = "prompt"):
     """Display test results in a formatted table"""
     # Display results
