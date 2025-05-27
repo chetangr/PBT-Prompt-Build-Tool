@@ -1,34 +1,41 @@
-# PBT Studio - Web UI Guide
+# 🌐 PBT Studio - Futuristic Web UI Guide
 
-## Overview
+## ✨ Overview
 
-PBT Studio is a modern web interface for the Prompt Build Tool that provides a visual, interactive way to compare Language Learning Models (LLMs) side by side. Similar to dbt Cloud's interface, it offers an intuitive experience for prompt engineering, testing, and optimization.
+PBT Studio is a **cutting-edge, VisionOS-inspired web interface** for the Prompt Build Tool featuring:
+- **Glassmorphism design** with backdrop blur effects
+- **Fluid animations** and micro-interactions  
+- **Real-time LLM comparisons** across Claude, GPT-4, and other models
+- **Advanced scoring system** with expected output evaluation
+- **Dark/Light mode** with smooth theme transitions
+- **Comprehensive logging** and debugging tools
 
-## Features
+## 🎨 **Visual Features**
 
-### 🎯 Core Capabilities
+### **🌊 Futuristic Design**
+- **Glassmorphism panels** with backdrop blur
+- **Floating particles** background animation
+- **Gradient text effects** and glowing elements
+- **Smooth transitions** with cubic-bezier easing
+- **Mouse trail effects** and micro-interactions
 
-1. **Multi-Model Comparison**
-   - Compare prompts across multiple LLMs simultaneously
-   - Real-time streaming responses
-   - Side-by-side output visualization
+### **🌙 Theme System**
+- **Light/Dark mode toggle** with animated transitions
+- **Persistent preferences** stored locally
+- **Ripple effects** during theme changes
+- **Auto-adapting colors** and contrast
 
-2. **Automatic Scoring**
-   - Provide expected outputs for automatic evaluation
-   - Multiple evaluation metrics (exact match, word overlap, etc.)
-   - Visual score indicators
+### **📊 Advanced Scoring**
+- **Color-coded badges**: 🟢 8-10 🟡 6-8 🔴 <6
+- **Real-time evaluation** with multiple metrics
+- **Performance comparisons** across models
+- **Quality recommendations** based on scores
 
-3. **Performance Metrics**
-   - Response time tracking
-   - Token usage monitoring
-   - Cost estimation per model
-   - Quality score calculation
-
-4. **Smart Recommendations**
-   - Best model for quality
-   - Fastest response time
-   - Most cost-effective option
-   - Balanced recommendation
+### **🔍 Enhanced UX**
+- **Auto-variable detection** from `{{syntax}}`
+- **Staggered animations** for results
+- **Comprehensive logging** with styled console output
+- **Error tracking** and debugging tools
 
 ## Getting Started
 
@@ -44,25 +51,29 @@ pip install 'prompt-build-tool[web]'
 pip install fastapi uvicorn aiohttp pydantic
 ```
 
-### Launching the Web UI
+### 🚀 **Launching the Futuristic UI**
 
-Start the web interface with a single command:
+Start the enhanced web interface:
 
 ```bash
 # Start with default settings (port 8080)
 pbt web
 
-# Custom port
+# Custom port with dark mode preference
 pbt web --port 3000
 
-# Bind to all interfaces (for network access)
-pbt web --host 0.0.0.0
+# Network access for team collaboration
+pbt web --host 0.0.0.0 --port 8080
 
-# Don't open browser automatically
+# Headless mode (no auto-browser)
 pbt web --no-open
 ```
 
-The web UI will automatically open in your default browser at `http://localhost:8080`.
+✨ **The UI features:**
+- **Instant loading** with smooth entrance animations
+- **Auto-theme detection** based on system preference
+- **Real-time WebSocket** connections
+- **Floating particles** and ambient effects
 
 ## Using the Interface
 

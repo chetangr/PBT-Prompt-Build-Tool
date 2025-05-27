@@ -9,6 +9,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
 </head>
 <body>
+    <!-- Floating Particles Background -->
+    <div class="particles" id="particles"></div>
+    
     <div id="app">
         <!-- Header -->
         <header class="header">
@@ -22,6 +25,9 @@
                 </button>
                 <button class="btn btn-secondary" onclick="showSavedPrompts()">
                     <i class="fas fa-bookmark"></i> Saved
+                </button>
+                <button class="btn btn-outline theme-toggle" onclick="toggleTheme()" id="theme-toggle">
+                    <i class="fas fa-moon"></i> <span id="theme-text">Dark</span>
                 </button>
                 <button class="btn btn-primary" onclick="showSettings()">
                     <i class="fas fa-cog"></i> Settings

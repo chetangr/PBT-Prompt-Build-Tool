@@ -104,6 +104,9 @@ async def get_available_models():
 async def compare_models(request: PromptRequest):
     """Compare prompt across multiple models"""
     logger.info(f"Comparing prompt across models: {request.models}")
+    logger.info(f"Expected output provided: {bool(request.expected_output)}")
+    if request.expected_output:
+        logger.info(f"Expected output preview: {request.expected_output[:100]}...")
     
     request_id = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     results = []
@@ -117,14 +120,19 @@ async def compare_models(request: PromptRequest):
     
     # Calculate scores if expected output provided
     if request.expected_output:
-        evaluator = PromptEvaluator()
+        logger.info(f"Calculating scores with expected output: {request.expected_output[:100]}...")
         for response in model_responses:
+            logger.info(f"Evaluating model {response.model} output: {response.output[:100]}...")
             score, evaluation = await evaluate_output(
                 response.output, 
                 request.expected_output
             )
             response.score = score
             response.evaluation = evaluation
+            logger.info(f"Model {response.model} scored: {score:.2f}/10")
+            logger.info(f"Evaluation details: {evaluation}")
+    else:
+        logger.info("No expected output provided, skipping score calculation")
     
     # Generate recommendations
     recommendations = generate_recommendations(model_responses)
@@ -139,6 +147,11 @@ async def compare_models(request: PromptRequest):
         recommendations=recommendations,
         has_expected_output=bool(request.expected_output)
     )
+    
+    # Log the final response
+    logger.info(f"Comparison response - has_expected_output: {comparison.has_expected_output}")
+    for model in comparison.models:
+        logger.info(f"Model {model.model} - score: {model.score}, has evaluation: {bool(model.evaluation)}")
     
     # Save to history
     comparison_history.append(comparison)
@@ -193,16 +206,35 @@ def render_prompt_with_variables(prompt: str, variables: Dict[str, Any]) -> str:
 
 async def evaluate_output(output: str, expected: str) -> tuple[float, Dict[str, float]]:
     """Evaluate output against expected result"""
-    # Simple evaluation metrics (enhance with LLM-based evaluation)
+    # Handle edge cases
+    if not output or not expected:
+        return 0.0, {"contains_expected": 0.0}
+    
+    # Simplified evaluation focused on context match
+    output_lower = output.lower()
+    expected_lower = expected.lower()
+    
+    # Check if output contains the expected text
+    contains_expected = 1.0 if expected_lower in output_lower else 0.0
+    
+    # If not exact substring, check word overlap
+    if contains_expected == 0.0:
+        word_overlap = calculate_word_overlap(output, expected)
+        # Give partial credit for word overlap
+        contains_expected = min(word_overlap * 1.5, 1.0)  # Boost word overlap score
+    
+    # Calculate overall score (weighted)
+    exact_match = 1.0 if output.strip() == expected.strip() else 0.0
+    length_ratio = min(len(output) / max(len(expected), 1), len(expected) / max(len(output), 1))
+    
+    # Weighted score: context match is most important
+    score = (contains_expected * 0.5 + exact_match * 0.3 + length_ratio * 0.2) * 10
+    
     evaluation = {
-        "exact_match": 1.0 if output.strip() == expected.strip() else 0.0,
-        "contains_expected": 1.0 if expected.lower() in output.lower() else 0.0,
-        "length_ratio": min(len(output) / len(expected), len(expected) / len(output)),
-        "word_overlap": calculate_word_overlap(output, expected)
+        "contains_expected": contains_expected
     }
     
-    # Calculate overall score
-    score = sum(evaluation.values()) / len(evaluation) * 10
+    logger.info(f"Score: {score:.1f}, Context match: {contains_expected:.1%}")
     
     return score, evaluation
 
@@ -277,6 +309,22 @@ async def get_comparison_history(limit: int = 10):
     """Get recent comparison history"""
     return {"history": comparison_history[-limit:]}
 
+@app.post("/api/logs")
+async def receive_log(log_entry: dict):
+    """Receive and process frontend logs"""
+    try:
+        logger.info(f"Frontend Log [{log_entry.get('type', 'info').upper()}]: {log_entry.get('message', 'No message')}")
+        
+        # Store critical logs for debugging
+        if log_entry.get('type') == 'error':
+            # You could store in database, send to monitoring service, etc.
+            pass
+            
+        return {"status": "success", "message": "Log received"}
+    except Exception as e:
+        logger.error(f"Error processing frontend log: {e}")
+        return {"status": "error", "message": str(e)}
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket for real-time streaming responses"""
@@ -284,6 +332,13 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             data = await websocket.receive_json()
+            
+            # Create proper request object
+            request = PromptRequest(**data)
+            logger.info(f"WebSocket request - Expected output: {bool(request.expected_output)}")
+            
+            # Collect all responses first
+            model_responses = []
             
             # Stream responses as they complete
             for model in data["models"]:
@@ -294,13 +349,34 @@ async def websocket_endpoint(websocket: WebSocket):
                 })
                 
                 # Process model
-                response = await process_model(model, PromptRequest(**data))
+                response = await process_model(model, request)
+                model_responses.append(response)
                 
                 await websocket.send_json({
                     "type": "model_complete",
                     "model": model,
-                    "response": response.dict()
+                    "response": response.model_dump()
                 })
+            
+            # Calculate scores if expected output provided
+            if request.expected_output:
+                logger.info("Calculating scores for WebSocket responses...")
+                for response in model_responses:
+                    score, evaluation = await evaluate_output(
+                        response.output, 
+                        request.expected_output
+                    )
+                    response.score = score
+                    response.evaluation = evaluation
+                    logger.info(f"WebSocket - Model {response.model} scored: {score:.2f}/10")
+                    
+                    # Send score update
+                    await websocket.send_json({
+                        "type": "score_update",
+                        "model": response.model,
+                        "score": score,
+                        "evaluation": evaluation
+                    })
                 
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")
