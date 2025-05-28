@@ -2922,5 +2922,140 @@ def chunk(
         raise typer.Exit(1)
 
 
+@app.command(name="draft")
+def draft_prompt(
+    text: str = typer.Argument(..., help="Plain text to convert into a structured prompt"),
+    goal: Optional[str] = typer.Option(None, "--goal", "-g", help="Goal or purpose for the prompt"),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path (defaults to generated name)"),
+    variables: Optional[List[str]] = typer.Option(None, "--var", "-v", help="Variables to include in the prompt (can be used multiple times)"),
+    model: str = typer.Option("claude-3-opus", "--model", "-m", help="Default model for the prompt"),
+    generate_tests: bool = typer.Option(True, "--tests/--no-tests", help="Generate test cases"),
+    interactive: bool = typer.Option(False, "--interactive", "-i", help="Interactive mode to refine the prompt")
+):
+    """
+    ✏️ Draft a structured prompt from plain text
+    
+    Examples:
+    - pbt draft "Summarize this article focusing on key points"
+    - pbt draft "Translate text to Spanish" --var text --var style  
+    - pbt draft "Review code for bugs" --goal "Code review assistant" --output reviewer.prompt.yaml
+    """
+    console.print(f"[bold blue]✏️ Drafting structured prompt from text[/bold blue]")
+    console.print(f"[cyan]📝 Text: {text[:100]}{'...' if len(text) > 100 else ''}[/cyan]")
+    
+    try:
+        # Initialize project
+        project = PBTProject()
+        
+        # Prepare the enhanced goal
+        enhanced_goal = goal if goal else f"Create a prompt that: {text}"
+        
+        # If variables are specified, include them in the goal
+        if variables:
+            enhanced_goal += f"\n\nThe prompt should accept these variables: {', '.join(variables)}"
+        
+        # Use the existing PromptGenerator to create a structured prompt
+        generator = PromptGenerator(project)
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console
+        ) as progress:
+            task = progress.add_task("[cyan]Analyzing text and generating prompt structure...", total=1)
+            
+            # Generate the prompt
+            result = generator.generate_prompt(
+                goal=enhanced_goal,
+                variables=variables if variables else [],
+                examples=None,
+                constraints=[f"Base the prompt on this text pattern: {text}"]
+            )
+            
+            progress.update(task, completed=1)
+        
+        if result['success']:
+            # Determine output filename
+            if output:
+                prompt_path = output
+            else:
+                # Generate filename from text (first few words)
+                name_parts = text.lower().split()[:3]
+                filename = "-".join(name_parts) + ".prompt.yaml"
+                prompt_path = Path(filename)
+            
+            # Get the generated prompt data
+            prompt_data = result['prompt']
+            
+            # Add the original text as a note
+            if 'metadata' not in prompt_data:
+                prompt_data['metadata'] = {}
+            prompt_data['metadata']['original_text'] = text
+            prompt_data['metadata']['generated_from'] = 'draft'
+            
+            # Update model if specified
+            if model:
+                prompt_data['model'] = model
+            
+            # Interactive refinement
+            if interactive:
+                console.print("\n[yellow]🔍 Generated Prompt Preview:[/yellow]")
+                console.print(Panel(prompt_data['template'], title="Prompt Template"))
+                
+                if typer.confirm("\n✏️  Would you like to refine this prompt?"):
+                    new_template = typer.prompt("Enter refined prompt", default=prompt_data['template'])
+                    prompt_data['template'] = new_template
+            
+            # Save the prompt file
+            with open(prompt_path, 'w') as f:
+                yaml.dump(prompt_data, f, default_flow_style=False, sort_keys=False)
+            
+            console.print(f"\n[green]✅ Prompt saved to: {prompt_path}[/green]")
+            
+            # Display the generated prompt
+            console.print("\n[bold cyan]📋 Generated Prompt:[/bold cyan]")
+            syntax = Syntax(yaml.dump(prompt_data, default_flow_style=False), "yaml", theme="monokai")
+            console.print(syntax)
+            
+            # Generate tests if requested
+            if generate_tests:
+                test_path = Path(f"tests/{prompt_path.stem}.test.yaml")
+                if result.get('tests'):
+                    test_path.parent.mkdir(exist_ok=True)
+                    with open(test_path, 'w') as f:
+                        yaml.dump({'tests': result['tests']}, f, default_flow_style=False)
+                    console.print(f"\n[green]✅ Tests saved to: {test_path}[/green]")
+            
+            # Provide next steps
+            console.print("\n[bold yellow]🚀 Next steps:[/bold yellow]")
+            console.print(f"1. Test your prompt: [cyan]pbt test {prompt_path}[/cyan]")
+            console.print(f"2. Compare models: [cyan]pbt compare {prompt_path}[/cyan]")
+            console.print(f"3. Optimize: [cyan]pbt optimize {prompt_path}[/cyan]")
+            console.print(f"4. Interactive UI: [cyan]pbt web[/cyan]")
+            
+        else:
+            console.print(f"[red]❌ Failed to generate prompt: {result.get('error', 'Unknown error')}[/red]")
+            raise typer.Exit(1)
+            
+    except Exception as e:
+        console.print(f"[red]❌ Error: {e}[/red]")
+        raise typer.Exit(1)
+
+
+@app.command(name="d")
+def draft_prompt_short(
+    text: str = typer.Argument(..., help="Plain text to convert into a structured prompt"),
+    goal: Optional[str] = typer.Option(None, "--goal", "-g", help="Goal or purpose for the prompt"),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path"),
+    variables: Optional[List[str]] = typer.Option(None, "--var", "-v", help="Variables to include"),
+    model: str = typer.Option("claude-3-opus", "--model", "-m", help="Default model"),
+    generate_tests: bool = typer.Option(True, "--tests/--no-tests", help="Generate test cases"),
+    interactive: bool = typer.Option(False, "--interactive", "-i", help="Interactive mode")
+):
+    """✏️ Shorthand for draft - convert text to structured prompt"""
+    # Just call the main function
+    draft_prompt(text, goal, output, variables, model, generate_tests, interactive)
+
+
 if __name__ == "__main__":
     app()

@@ -117,6 +117,34 @@ cp .env.example .env
 pbt generate --goal "Summarize legal documents"
 ```
 
+### ✨ NEW: Draft Command
+
+Convert any plain text into a structured, reusable prompt:
+
+```bash
+# Simple conversion
+pbt draft "Analyze customer sentiment and suggest improvements"
+
+# With variables and custom output
+pbt draft "Translate the following text to Spanish" \
+  --var text --var tone \
+  --output translator.prompt.yaml
+
+# Interactive mode for refinement
+pbt draft "Review this code for security issues" \
+  --goal "Security code reviewer" \
+  --interactive
+
+# Short version
+pbt d "Extract key insights from meeting notes"
+```
+
+This creates a properly structured prompt file with:
+- Template with variable placeholders
+- Input/output specifications
+- Test cases (auto-generated)
+- Model configurations
+
 ## 📸 Visual Examples
 
 ### Interactive Web UI (`pbt web`)
@@ -255,6 +283,7 @@ pbt chain execute research-assistant-chain.yaml \
 | Feature | Command | Description |
 |---------|---------|-------------|
 | **Generate** | `pbt generate` | AI creates prompts from goals |
+| **Draft** | `pbt draft` | Convert plain text to structured prompts |
 | **Test** | `pbt test` | Automated prompt testing |
 | **Optimize** | `pbt optimize` | Reduce costs, improve clarity |
 | **Compare** | `pbt compare` | A/B test across models |
