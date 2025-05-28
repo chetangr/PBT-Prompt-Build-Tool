@@ -24,11 +24,11 @@ setup(
     description="Infrastructure-grade prompt engineering for AI teams working across LLMs",
     long_description=read_readme(),
     long_description_content_type="text/markdown",
-    url="https://github.com/prompt-build-tool/pbt",
+    url="https://github.com/saicgr/PBT-Prompt-Build-Tool",
     project_urls={
-        "Bug Tracker": "https://github.com/prompt-build-tool/pbt/issues",
-        "Documentation": "https://github.com/prompt-build-tool/pbt/blob/main/README.md",
-        "Source Code": "https://github.com/prompt-build-tool/pbt",
+        "Bug Tracker": "https://github.com/saicgr/PBT-Prompt-Build-Tool/issues",
+        "Documentation": "https://github.com/saicgr/PBT-Prompt-Build-Tool/blob/main/README.md",
+        "Source Code": "https://github.com/saicgr/PBT-Prompt-Build-Tool",
     },
     packages=find_packages(),
     classifiers=[
@@ -130,13 +130,7 @@ setup(
     include_package_data=True,
     package_data={
         "pbt": [
-            "templates/*.yaml",
-            "templates/*.sql",
-            "static/*",
-            "config/*.json",
             "web/static/*",
-            "web/static/css/*",
-            "web/static/js/*",
         ],
     },
     zip_safe=False,

@@ -95,10 +95,10 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/prompt-build-tool/pbt"
-Documentation = "https://github.com/prompt-build-tool/pbt/blob/main/README.md"
-Repository = "https://github.com/prompt-build-tool/pbt"
-"Bug Tracker" = "https://github.com/prompt-build-tool/pbt/issues"
+Homepage = "https://github.com/saicgr/PBT-Prompt-Build-Tool"
+Documentation = "https://github.com/saicgr/PBT-Prompt-Build-Tool/blob/main/README.md"
+Repository = "https://github.com/saicgr/PBT-Prompt-Build-Tool"
+"Bug Tracker" = "https://github.com/saicgr/PBT-Prompt-Build-Tool/issues"
 
 [project.scripts]
 pbt = "pbt.cli.main:app"
@@ -111,7 +111,7 @@ version = {attr = "pbt.__version__.__version__"}
 include = ["pbt*"]
 
 [tool.setuptools.package-data]
-pbt = ["templates/*.yaml", "templates/*.sql", "static/*", "config/*.json"]
+pbt = ["web/static/*"]
 
 [tool.black]
 line-length = 100

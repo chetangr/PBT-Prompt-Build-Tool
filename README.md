@@ -325,7 +325,7 @@ my-ai-product/
 - [API Keys Setup](./docs/API_KEYS.md)
 - [Command Reference](./docs/COMMANDS.md)
 - [Web UI Guide](./docs/web_ui_guide.md)
-- [Examples](./examples.md)
+- [Examples](./docs/examples.md)
 
 ## 🛣️ Roadmap
 
