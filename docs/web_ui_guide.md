@@ -9,6 +9,7 @@ PBT Studio is a **cutting-edge, VisionOS-inspired web interface** for the Prompt
 - **Advanced scoring system** with expected output evaluation
 - **Dark/Light mode** with smooth theme transitions
 - **Comprehensive logging** and debugging tools
+- **NEW: Table Layout** for side-by-side model comparison
 
 ## 🎨 **Visual Features**
 
@@ -74,6 +75,26 @@ pbt web --no-open
 - **Auto-theme detection** based on system preference
 - **Real-time WebSocket** connections
 - **Floating particles** and ambient effects
+
+## 📊 **Layout Options**
+
+### **Classic View (Default)**
+The original two-panel layout:
+- **Left Panel**: Input configuration (prompt, variables, parameters)
+- **Right Panel**: Stacked model outputs with vertical scrolling
+- **Best for**: Detailed analysis of individual responses
+
+### **Table View (New!)**
+A horizontal table layout for easier comparison:
+- **Fixed Left Column**: Input configuration remains visible
+- **Model Columns**: Each model gets its own column
+- **Horizontal Scrolling**: Compare multiple models side-by-side
+- **Best for**: Quick comparison across many models
+
+Access the table view:
+- Click the **"Table View"** button in the header
+- Navigate directly to `/table`
+- Switch back with **"Classic View"** button
 
 ## Using the Interface
 

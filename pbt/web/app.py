@@ -13,7 +13,7 @@ import logging
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
 import uvicorn
 
@@ -380,6 +380,16 @@ async def websocket_endpoint(websocket: WebSocket):
                 
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")
+
+@app.get("/")
+async def root():
+    """Serve the main UI"""
+    return FileResponse("pbt/web/static/index.html")
+
+@app.get("/table")
+async def table_view():
+    """Serve the table layout version"""
+    return FileResponse("pbt/web/static/table.html")
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="pbt/web/static"), name="static")
