@@ -1,12 +1,155 @@
+# Environment and secrets
 .env
+.env.*
+!.env.example
+secrets/
+config/local.*
+
+# Python
 *.pyc
 __pycache__/
-.pytest_cache/
-.coverage
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environments
 .venv/
 venv/
-node_modules/
+ENV/
+env/
+.virtualenv/
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+test_*.py
+!tests/test_*.py
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# OS files
 .DS_Store
-evaluations/*.json
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Logs and databases
 *.log
+*.sql
+*.sqlite
+*.db
+logs/
+*.log.*
+
+# Build and distribution
+/build/
+/dist/
+/*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Documentation builds
+docs/_build/
+docs/.doctrees/
+site/
+
+# Exclude most docs from package (keep in repo but not in PyPI)
+docs/*.md
+!docs/API_KEYS.md
+!docs/getting_started.md
+
+# Exclude examples from package
+examples/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*~
+.cache/
+
+# Project specific
+evaluations/*.json
+evaluations/*.yaml
+!evaluations/example.json
+node_modules/
+*.pbt_cache/
+.pbt_cache/
+deployments/local/
+deployments/*/secrets/
+
+# Development and setup scripts
+install_*.sh
+setup_*.sh
+reinstall_*.sh
+fix_*.py
+test_installation.py
+test_local.py
+test_env_fix.py
+test_demo.sh
+
+# Internal documentation
 MILESTONES.md
+CODE_CLEANUP_SUMMARY.md
+PYPI_UPLOAD.md
+PYPI_CHECKLIST.md
+PYPI_READY.md
+troubleshoot.md
+docs/troubleshooting_guide.md
+docs/test_examples.md
+
+# Generated files
+prompt_build_tool.egg-info/
+pbt_cli.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Package files
+*.tar.gz
+*.zip
+*.whl
+
+# Fly.io
+fly.toml

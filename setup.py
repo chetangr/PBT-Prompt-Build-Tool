@@ -18,18 +18,17 @@ def read_version():
     return "0.1.0"
 
 setup(
-    name="prompt-build-tool",
+    name="pbt-cli",
     version=read_version(),
-    author="PBT Team",
-    author_email="support@promptbuildtool.com",
+    author_email="saipy252@gmail.com",
     description="Infrastructure-grade prompt engineering for AI teams working across LLMs",
     long_description=read_readme(),
     long_description_content_type="text/markdown",
     url="https://github.com/prompt-build-tool/pbt",
     project_urls={
         "Bug Tracker": "https://github.com/prompt-build-tool/pbt/issues",
-        "Documentation": "https://docs.promptbuildtool.com",
-        "Homepage": "https://promptbuildtool.com",
+        "Documentation": "https://github.com/prompt-build-tool/pbt/blob/main/README.md",
+        "Source Code": "https://github.com/prompt-build-tool/pbt",
     },
     packages=find_packages(),
     classifiers=[

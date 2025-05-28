@@ -3,16 +3,13 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "prompt-build-tool"
+name = "pbt-cli"
 dynamic = ["version"]
 description = "Infrastructure-grade prompt engineering for AI teams working across LLMs"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
-    {name = "PBT Team", email = "support@promptbuildtool.com"},
-]
-maintainers = [
-    {name = "PBT Team", email = "support@promptbuildtool.com"},
+    {email = "saipy252@gmail.com"},
 ]
 keywords = [
     "prompt engineering",
@@ -98,8 +95,8 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://promptbuildtool.com"
-Documentation = "https://docs.promptbuildtool.com"
+Homepage = "https://github.com/prompt-build-tool/pbt"
+Documentation = "https://github.com/prompt-build-tool/pbt/blob/main/README.md"
 Repository = "https://github.com/prompt-build-tool/pbt"
 "Bug Tracker" = "https://github.com/prompt-build-tool/pbt/issues"
 

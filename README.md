@@ -2,6 +2,7 @@
 
 **The dbt + Terraform for LLM Prompts**
 
+[![PyPI version](https://badge.fury.io/py/pbt-cli.svg)](https://badge.fury.io/py/pbt-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Documentation](https://img.shields.io/badge/docs-comprehensive-green.svg)](./docs/getting_started.md)
@@ -101,10 +102,21 @@ pbt testcomp medical-advisor.yaml tests/safety.yaml --aspects safety,accuracy
 
 ## 🚀 Quick Start
 
-```bash
-# Install
-pip install prompt-build-tool
+### Installation
 
+```bash
+# Install from PyPI (recommended)
+pip install pbt-cli
+
+# Or install from source
+git clone https://github.com/prompt-build-tool/pbt
+cd pbt
+pip install -e .
+```
+
+### Getting Started
+
+```bash
 # Initialize project
 pbt init my-ai-product
 cd my-ai-product
@@ -335,4 +347,4 @@ MIT License - see [LICENSE](./LICENSE)
 
 ---
 
-**Get Started:** `pip install prompt-build-tool` | **Questions?** [GitHub Issues](https://github.com/your-org/pbt/issues) | **Built with ❤️ by the PBT Team**
+**Get Started:** `pip install pbt-cli` | **Questions?** [GitHub Issues](https://github.com/prompt-build-tool/pbt/issues) | **Built with ❤️ by the PBT Team**
