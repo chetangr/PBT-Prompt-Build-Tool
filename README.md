@@ -347,4 +347,4 @@ MIT License - see [LICENSE](./LICENSE)
 
 ---
 
-**Get Started:** `pip install pbt-cli` | **Questions?** [GitHub Issues](https://github.com/prompt-build-tool/pbt/issues) | **Built with ❤️ by the PBT Team**
+**Get Started:** `pip install pbt-cli` | **Questions?** [GitHub Issues](https://github.com/saicgr/PBT-Prompt-Build-Tool/issues) | **Built with ❤️ by the PBT Team**
